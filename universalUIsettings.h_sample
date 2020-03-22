@@ -1,0 +1,16 @@
+/*
+ * Note: copy this file to universalUIsettings.h and adapt to your needs
+ */
+#ifndef UNIVERSAL_UI_SETTINGS_H
+#define UNIVERSAL_UI_SETTINGS_H
+
+#define LOCAL_WIFI_SSID "....."
+#define LOCAL_WIFI_WPSK "....."
+#define OTA_PORT 123
+#define OTA_AUTH_MD5 "..."
+
+//#define COPY_TO_SERIAL              // if logged messages should be immediately printed on Serial
+//#define NTP_UPDATE_INTERVAL 3600000 // every hour, in [ms]
+//#define NTP_RETRY_INTERVAL 60000    // once a minute, in [ms]
+
+#endif
