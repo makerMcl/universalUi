@@ -140,9 +140,7 @@ void UniversalUI::initOTA()
 
 void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow)
 {
-#if defined(ESP32) || defined(ESP8266)
-    Serial.begin(115200);
-#endif
+    Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
     Serial.printf("\n\nSketchname: %s\nBuild: %s\tSDK: %s\n", (__FILE__), (__TIMESTAMP__), ESP.getSdkVersion());
     //Serial <<"compiler version: "<< __VERSION__<<endl;
     Serial << "MAC address is " << WiFi.macAddress() << "  ";

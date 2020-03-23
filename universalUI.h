@@ -29,11 +29,27 @@ You should have received a copy of the GNU General Public License along with thi
 #define NTP_INITIAL_TRIES 3
 #endif
 
+#ifndef UNIVERSALUI_WIFI_MAX_CONNECT_TRIES
+#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 5 // between each try is a delay of 500ms
+#endif
+#ifndef UNIVERSALUI_WIFI_RECONNECT_WAIT
+#define UNIVERSALUI_WIFI_RECONNECT_WAIT 500 // in [ms], delay between next WiFi status check
+#endif
+
 // optional configuration settings, to be defined before including this file
-//#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 5      // between each try is a delay of 500ms
-//#define UNIVERSALUI_WIFI_RECONNECT_WAIT 500       // in [ms], delay between next WiFi status check
 //#define UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
-//#define COPY_TO_SERIAL                            // if logged messages should be immediately printed on Serial
+//#define COPY_TO_SERIAL                    // if logged messages should be immediately printed on Serial
+
+// following settings are per default adapted to default behaviour of the board
+#ifndef UNIVERSALUI_SERIAL_BAUDRATE
+#if defined(ESP32)
+#define UNIVERSALUI_SERIAL_BAUDRATE 115200 // baud rate of ESP32's boot loader
+#elif defined(ESP8266)
+#define UNIVERSALUI_SERIAL_BAUDRATE 74800 // baud rate of ES8266's boot loader
+#else
+#define UNIVERSALUI_SERIAL_BAUDRATE 57600 // baud rate of ATmega328p's boot loader
+#endif
+#endif //of: #ifndef UNIVERSALUI_SERIAL_BAUDRATE
 
 /**
  * Encapsules and supports status visualisation with several methods:<ul>
