@@ -11,12 +11,13 @@ You should have received a copy of the GNU General Public License along with thi
 */
 #include <Print.h>
 #include <Streaming.h>
-#ifdef ESP32 // Im Falle eines ESP32-Boards
+#if defined(ESP32) // Im Falle eines ESP32-Boards
 #include <WiFi.h>
-#else // bei einem ESP8266-Board
-//#include <ESP8266WiFi.h>
-#endif
 #include <ESPmDNS.h>
+#elif defined(ESP8266) // bei einem ESP8266-Board
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#endif
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <NTPClient.h>
@@ -33,7 +34,11 @@ String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 
 void UniversalUI::initWifi(const char *SSID, const char *WPSK)
 {
+#if defined(ESP32)
     WiFi.setHostname(_appname);
+#elif defined(ESP8266)
+    WiFi.hostname(_appname);
+#endif
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, wpsk);
     int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
@@ -96,24 +101,24 @@ void UniversalUI::initOTA()
             statusActive("OTA update");
             _otaActive = true;
             Serial.println("Start updating " + type);
-        })
-        .onEnd([this]() {
-            _otaActive = false;
-            Serial.println(" End");
-        })
-        .onProgress([](unsigned int progress, unsigned int total) {
-            // OTA uploads in 1024 byte chunks
-            const byte part = (progress * 100 / total);
-            if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
-            {
-                Serial.printf("%u%%\n", part);
-            }
-            else
-            {
-                Serial.print('.');
-            }
-        })
-        .onError([this](ota_error_t error) {
+        });
+    ArduinoOTA.onEnd([this]() {
+                  _otaActive = false;
+                  Serial.println(" End");
+              });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+                  // OTA uploads in 1024 byte chunks
+                  const byte part = (progress * 100 / total);
+                  if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
+                  {
+                      Serial.printf("%u%%\n", part);
+                  }
+                  else
+                  {
+                      Serial.print('.');
+                  }
+              });
+        ArduinoOTA.onError([this](ota_error_t error) {
             Serial.printf("OTA Error[%u]: ", error);
             char reason[30];
             if (error == OTA_AUTH_ERROR)
