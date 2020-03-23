@@ -36,12 +36,50 @@ void UniversalUI::initWifi(const char *SSID, const char *WPSK)
     WiFi.setHostname(_appname);
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, wpsk);
-    while (WiFi.status() != WL_CONNECTED)
+    int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
+    while (WiFi.status() != WL_CONNECTED && triesLeft > 0)
     {
         Serial.print(".");
-        delay(500);
+        --triesLeft;
+        delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
     }
-    Serial << "\nConnected with IP=" << WiFi.localIP() << endl;
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        Serial << "\nConnected with IP=" << WiFi.localIP() << endl;
+    }
+    else
+    {
+        Serial << "\nConnect failed, status=" << WiFi.status() << " (";
+        switch (WiFi.status())
+        {
+        case WL_IDLE_STATUS:
+            Serial << "IDLE";
+            break;
+        case WL_NO_SSID_AVAIL:
+            Serial << "NO_SSID_AVAIL";
+            break;
+        case WL_SCAN_COMPLETED:
+            Serial << "SCAN_COMPLETED";
+            break;
+        case WL_CONNECT_FAILED:
+            Serial << "CONNECT_FAILED";
+            break;
+        case WL_CONNECTION_LOST:
+            Serial << "CONNECTION_LOST";
+            break;
+        case WL_DISCONNECTED:
+            Serial << "DISCONNECTED";
+            break;
+        default:
+            Serial << "unknown";
+        };
+        Serial << ")" << endl;
+#ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
+        Serial << "restarting..." << endl;
+        delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
+        ESP.restart();
+#endif
+    }
 }
 
 void UniversalUI::initOTA()
@@ -118,7 +156,7 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow)
 #if defined(ESP32) || defined(ESP8266)
     initWifi(ssid, wpsk);
     initOTA();
-    int ntpTries = 3;
+    int ntpTries = NTP_INITIAL_TRIES;
     do
     {
         _ntpTimeValid = _timeClient->forceUpdate();

@@ -20,12 +20,20 @@ You should have received a copy of the GNU General Public License along with thi
 #include "logBuffer.h"
 #include "blinkLed.h"
 
+// configuration section, to be modified via earlier #define's
 #ifndef NTP_UPDATE_INTERVAL
 #define NTP_UPDATE_INTERVAL 3600000 // every hour, in [ms]
 #define NTP_RETRY_INTERVAL 60000    // once a minute, in [ms]
 #endif
+#ifndef NTP_INITIAL_TRIES
+#define NTP_INITIAL_TRIES 3
+#endif
 
-//#define COPY_TO_SERIAL // if logged messages should be immediately printed on Serial
+// optional configuration settings, to be defined before including this file
+//#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 5      // between each try is a delay of 500ms
+//#define UNIVERSALUI_WIFI_RECONNECT_WAIT 500       // in [ms], delay between next WiFi status check
+//#define UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
+//#define COPY_TO_SERIAL                            // if logged messages should be immediately printed on Serial
 
 /**
  * Encapsules and supports status visualisation with several methods:<ul>
