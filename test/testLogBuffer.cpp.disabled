@@ -1,0 +1,56 @@
+#include <unity.h>
+#include "logBuffer.h"
+
+LogBuffer lb = LogBuffer();
+
+void setUp()
+{
+    lb.clear();
+}
+void tearDown() {}
+
+void emptyBuffer()
+{
+    lb.write("");
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(0));
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(1));
+}
+void simpleLogging()
+{
+    lb.write("abcd");
+    lb.write("xyz");
+    TEST_ASSERT_EQUAL_STRING("abcdxyz", lb.getLog(0));
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(1));
+}
+void messageLargerThanBuffer()
+{
+    lb.write("123456789012345678");
+    TEST_ASSERT_EQUAL_STRING("[...] 9012345678", lb.getLog(0));
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(1));
+}
+void rollOverOfBuffer()
+{
+    lb.write("1234567890");
+    lb.write("abcdefghij");
+    TEST_ASSERT_EQUAL_STRING("[...] bcdefghij", lb.getLog(0));
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(1));
+}
+void printWithLineEndings()
+{
+    lb.write("123456789\n");
+    lb.write("abcde\n");
+    TEST_ASSERT_EQUAL_STRING("123456789\nabcde\n", lb.getLog(0));
+    TEST_ASSERT_EQUAL_STRING("", lb.getLog(1));
+}
+
+int main(int argc, char **argv)
+{
+    UNITY_BEGIN();
+    RUN_TEST(emptyBuffer);
+    RUN_TEST(simpleLogging);
+    RUN_TEST(messageLargerThanBuffer);
+    RUN_TEST(rollOverOfBuffer);
+    RUN_TEST(printWithLineEndings);
+    UNITY_END();
+    return 0;
+}
