@@ -27,7 +27,7 @@ Tested with Espressif's ESP32 and ESP8266.
 
 
 ## Licence
-Licenced under LGPL v3
+Licenced under GPL v3
 
 For contact, create a github issue please.
 
