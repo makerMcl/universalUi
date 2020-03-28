@@ -14,6 +14,8 @@ You should have received a copy of the GNU General Public License along with thi
 #ifndef LOG_BUFFER_H
 #define LOG_BUFFER_H
 
+#include "universalUIsettings.h"
+
 /**
  * Collects all data into buf.
  * 
@@ -34,7 +36,7 @@ class LogBuffer : public Print
 #define LOGBUF_LENGTH 16 // default size, for testing
 #endif
 private:
-    char clippedMarker[7] = {'[', '.', '.', '.', ']',' ', '\0'};
+    char clippedMarker[7] = {'[', '.', '.', '.', ']', ' ', '\0'};
     char buf[LOGBUF_LENGTH + 1];
     word appendIndex = 0; // where to append next logged character
     bool clipped = false;
