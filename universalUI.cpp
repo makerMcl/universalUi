@@ -103,40 +103,40 @@ void UniversalUI::initOTA()
             Serial.println("Start updating " + type);
         });
     ArduinoOTA.onEnd([this]() {
-                  _otaActive = false;
-                  Serial.println(" End");
-              });
+        _otaActive = false;
+        Serial.println(" End");
+    });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-                  // OTA uploads in 1024 byte chunks
-                  const byte part = (progress * 100 / total);
-                  if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
-                  {
-                      Serial.printf("%u%%\n", part);
-                  }
-                  else
-                  {
-                      Serial.print('.');
-                  }
-              });
-        ArduinoOTA.onError([this](ota_error_t error) {
-            Serial.printf("OTA Error[%u]: ", error);
-            char reason[30];
-            if (error == OTA_AUTH_ERROR)
-                strcpy(reason, "OTA error: Auth Failed");
-            else if (error == OTA_BEGIN_ERROR)
-                strcpy(reason, "OTA error: Begin Failed");
-            else if (error == OTA_CONNECT_ERROR)
-                strcpy(reason, "OTA error: Connect Failed");
-            else if (error == OTA_RECEIVE_ERROR)
-                strcpy(reason, "OTA error: Receive Failed");
-            else if (error == OTA_END_ERROR)
-                strcpy(reason, "OTA error: End Failed");
-            else
-                strcpy(reason, "OTA error: unknown");
-            Serial.println(reason);
-            statusErrorOta(reason);
-            _otaActive = false;
-        });
+        // OTA uploads in 1024 byte chunks
+        const byte part = (progress * 100 / total);
+        if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
+        {
+            Serial.printf("%u%%\n", part);
+        }
+        else
+        {
+            Serial.print('.');
+        }
+    });
+    ArduinoOTA.onError([this](ota_error_t error) {
+        Serial.printf("OTA Error[%u]: ", error);
+        char reason[30];
+        if (error == OTA_AUTH_ERROR)
+            strcpy(reason, "OTA error: Auth Failed");
+        else if (error == OTA_BEGIN_ERROR)
+            strcpy(reason, "OTA error: Begin Failed");
+        else if (error == OTA_CONNECT_ERROR)
+            strcpy(reason, "OTA error: Connect Failed");
+        else if (error == OTA_RECEIVE_ERROR)
+            strcpy(reason, "OTA error: Receive Failed");
+        else if (error == OTA_END_ERROR)
+            strcpy(reason, "OTA error: End Failed");
+        else
+            strcpy(reason, "OTA error: unknown");
+        Serial.println(reason);
+        statusErrorOta(reason);
+        _otaActive = false;
+    });
     ArduinoOTA.setHostname(_appname);
     ArduinoOTA.setPort(OTA_PORT);
     ArduinoOTA.setPasswordHash(OTA_AUTH_MD5);
@@ -159,21 +159,25 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow)
 #if defined(ESP32) || defined(ESP8266)
     initWifi(ssid, wpsk);
     initOTA();
-    int ntpTries = NTP_INITIAL_TRIES;
-    do
+    if (NULL != _timeClient)
     {
-        _ntpTimeValid = _timeClient->forceUpdate();
-        if (_ntpTimeValid)
+        _timeClient->begin();
+        int ntpTries = NTP_INITIAL_TRIES;
+        do
         {
-            _lastNtpUpdateMs = millis();
-            logInfo() << "initialized NTP client at millis()=" << _lastNtpUpdateMs << ", time is " << _timeClient->getFormattedTime() << endl;
-            ntpTries = 0;
-            break;
-        }
-        --ntpTries;
-        logError() << "failed getting NTP time (" << ntpTries << ")" << endl;
-        delay(500);
-    } while (ntpTries > 0);
+            _ntpTimeValid = _timeClient->forceUpdate();
+            if (_ntpTimeValid)
+            {
+                _lastNtpUpdateMs = millis();
+                logInfo() << "initialized NTP client at millis()=" << _lastNtpUpdateMs << ", time is " << _timeClient->getFormattedTime() << endl;
+                ntpTries = 0;
+                break;
+            }
+            --ntpTries;
+            logError() << "failed getting NTP time (" << ntpTries << ")" << endl;
+            delay(500);
+        } while (ntpTries > 0);
+    }
 #endif
     Serial << "\nReady\n\n";
 }
