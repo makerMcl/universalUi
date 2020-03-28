@@ -23,7 +23,7 @@ void setup()
 #ifdef USE_NTP
     ui.setNtpClient(&ntpClient);
 #endif
-    ui.init(PIN_LED_STATUS);
+    ui.init(PIN_LED_STATUS, __FILE__, __TIMESTAMP__);
     ui.setBlink(50, 950);
 }
 

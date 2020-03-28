@@ -143,13 +143,11 @@ void UniversalUI::initOTA()
     ArduinoOTA.begin();
 }
 
-void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow)
+void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, const char *mainFileName, const char *buildTimestamp)
 {
     Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
-    Serial.printf("\n\nSketchname: %s\nBuild: %s\tSDK: %s\n", (__FILE__), (__TIMESTAMP__), ESP.getSdkVersion());
+    logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << ESP.getSdkVersion() << endl;
     //Serial <<"compiler version: "<< __VERSION__<<endl;
-    Serial << "MAC address is " << WiFi.macAddress() << "  ";
-
     if (NOT_A_PIN != statusLedPin)
     {
         Serial << "setting status pin to " << statusLedPin << endl;
@@ -157,6 +155,9 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow)
     }
 
 #if defined(ESP32) || defined(ESP8266)
+    Serial << endl
+           << "MAC address is " << WiFi.macAddress() << endl;
+
     initWifi(ssid, wpsk);
     initOTA();
     if (NULL != _timeClient)

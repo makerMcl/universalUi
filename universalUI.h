@@ -103,24 +103,33 @@ public:
 
     /** 
      * To be called on <code>setUp();</code>.
+     * @param mainFileName to be provided with macro <code>__FILE__</code>
+     * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init()
+    void init(const char* mainFileName, const char* buildTimestamp)
     {
-        init(NOT_A_PIN);
+        init(NOT_A_PIN, mainFileName, buildTimestamp);
     }
 
     /**
      * Initializes UniversalUI component with status LED at the given pin, active at high.
+     * @param statusLedPin GPIO pin number where status led is attached
+     * @param mainFileName to be provided with macro <code>__FILE__</code>
+     * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin)
+    void init(const int statusLedPin, const char* mainFileName, const char* buildTimestamp)
     {
-        init(statusLedPin, false);
+        init(statusLedPin, false, mainFileName, buildTimestamp);
     }
 
     /**
      * Initializes UniversalUI component with status LED at the given pin.
+     * @param statusLedPin GPIO pin number where status led is attached
+     * @param statusLedActiveOnLow if true, LED is active on LOW; otherwise on HIGH
+     * @param mainFileName to be provided with macro <code>__FILE__</code>
+     * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin, const bool statusLedActiveOnLow);
+    void init(const int statusLedPin, const bool statusLedActiveOnLow, const char* mainFileName, const char* buildTimestamp);
 
     /**
      * Sets current blink interval. LED off is 0, 0.
