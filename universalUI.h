@@ -69,6 +69,8 @@ private:
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
     word _lastNtpUpdateMs = 0;
+    char *_userErrorMessage = nullptr;
+    word _userErrorMessageBlinkTill = 0;
     /**
      * Number of current, independent activities.
      * As long there is activity, status LED shall be on.
@@ -80,6 +82,7 @@ private:
     void statusErrorOta(const char *errorText);
     Print &log(const char *prefix);
     static char *printTimeInterval(char *buf, word m, byte idx);
+    void checkStatusLed();
 
 public:
     /**
@@ -106,7 +109,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const char* mainFileName, const char* buildTimestamp)
+    void init(const char *mainFileName, const char *buildTimestamp)
     {
         init(NOT_A_PIN, mainFileName, buildTimestamp);
     }
@@ -117,7 +120,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin, const char* mainFileName, const char* buildTimestamp)
+    void init(const int statusLedPin, const char *mainFileName, const char *buildTimestamp)
     {
         init(statusLedPin, false, mainFileName, buildTimestamp);
     }
@@ -129,7 +132,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin, const bool statusLedActiveOnLow, const char* mainFileName, const char* buildTimestamp);
+    void init(const int statusLedPin, const bool statusLedActiveOnLow, const char *mainFileName, const char *buildTimestamp);
 
     /**
      * Sets current blink interval. LED off is 0, 0.
@@ -148,29 +151,25 @@ public:
     void statusLedOn();
 
     /** Notifies about starting an activity. */
-    void startActivity()
-    {
-        ++_activityCount;
-        if (1 == _activityCount)
-        {
-            statusLedOn();
-        }
-    }
+    void startActivity();
     /** Notfies about a finished activity. */
-    void finishActivity()
-    {
-        --_activityCount;
-        if (0 == _activityCount)
-        {
-            statusLedOff();
-        }
-    }
+    void finishActivity();
 
     void statusActive(const char *message);
 
     void statusError(const char *message);
 
     void statusOk();
+
+    /** Indicates error in user interaction (no system error).
+     * @param message message to show in webUI
+     * @param durationInSeconds
+     */
+    void reportUiError(char *message, const byte blinkDurationInSeconds);
+    /** Indicate that the error in user interaction has been resolved. */
+    void clearUiError();
+    bool hasUiError() { return nullptr != _userErrorMessage; }
+    char *getUiErrorMessage() { return _userErrorMessage; }
 
     const char *getStatusMessage()
     {

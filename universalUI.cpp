@@ -191,6 +191,11 @@ boolean UniversalUI::handle()
     {
         return false;
     }
+    // handle ui error blink off
+    if (_userErrorMessageBlinkTill > 0 && (millis() > _userErrorMessageBlinkTill))
+    {
+        checkStatusLed();
+    }
     // update cycle for NTP queries
     if (NULL != _timeClient && ((long)(millis() - _lastNtpUpdateMs) >= (_ntpTimeValid ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL)))
     {
@@ -309,4 +314,49 @@ char *UniversalUI::printTimeInterval(char *buf, word m, byte idx)
     }
     buf += sprintf(buf, "%d%s", v, &(TIME_UNIT_LABEL[idx][0]));
     return buf;
+}
+
+void UniversalUI::startActivity()
+{
+    ++_activityCount;
+    if (1 == _activityCount)
+    {
+        statusLedOn();
+    }
+}
+void UniversalUI::checkStatusLed()
+{
+    if (0 == _userErrorMessageBlinkTill)
+    {
+        if (0 == _activityCount)
+            statusLedOff();
+        else
+            statusLedOn();
+    }
+}
+/** Notfies about a finished activity. */
+void UniversalUI::finishActivity()
+{
+    --_activityCount;
+    checkStatusLed();
+}
+
+void UniversalUI::reportUiError(char *message, const byte blinkDurationInSeconds)
+{
+    _userErrorMessage = message;
+    _userErrorMessageBlinkTill = millis() + blinkDurationInSeconds * 1000;
+    if (_userErrorMessageBlinkTill < millis())
+    {
+        // handle overflow: shorten blink time, blink till overflow value
+        logDebug() << "ui error blink with overflow: millis=" << millis() << ", should blink till" << _userErrorMessageBlinkTill << endl;
+        _userErrorMessageBlinkTill = -1000;
+    }
+    _statusLed.setBlink(200, 300);
+}
+/** Indicate that the error in user interaction has been resolved. */
+void UniversalUI::clearUiError()
+{
+    _userErrorMessage = nullptr;
+    _userErrorMessageBlinkTill = 0;
+    checkStatusLed();
 }
