@@ -165,8 +165,7 @@ public:
      * @param message message to show in webUI
      * @param durationInSeconds
      */
-    void reportUiError(char *message, const byte blinkDurationInSeconds);
-    void reportUiError(String message, const byte blinkDurationInSeconds) { reportUiError(message, blinkDurationInSeconds); }
+    void reportUiError(String message, const byte blinkDurationInSeconds);
     /** Indicate that the error in user interaction has been resolved. */
     void clearUiError();
     bool hasUiError() { return nullptr != _userErrorMessage; }

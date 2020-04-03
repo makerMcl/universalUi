@@ -341,9 +341,9 @@ void UniversalUI::finishActivity()
     checkStatusLed();
 }
 
-void UniversalUI::reportUiError(char *message, const byte blinkDurationInSeconds)
+void UniversalUI::reportUiError(String message, const byte blinkDurationInSeconds)
 {
-    _userErrorMessage = message;
+    _userErrorMessage = &message[0];
     _userErrorMessageBlinkTill = millis() + blinkDurationInSeconds * 1000;
     if (_userErrorMessageBlinkTill < millis())
     {
