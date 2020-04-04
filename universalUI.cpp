@@ -1,7 +1,7 @@
 /*
 UniversalUI - often-used user interface functionality
 
-Copyright (C) 2020  Matthias Clau√ü
+Copyright (C) 2020  Matthias Clauﬂ
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
 
@@ -11,10 +11,10 @@ You should have received a copy of the GNU General Public License along with thi
 */
 #include <Print.h>
 #include <Streaming.h>
-#if defined(ESP32) // Im Falle eines ESP32-Boards
+#if defined(ESP32) // ESP32 board
 #include <WiFi.h>
 #include <ESPmDNS.h>
-#elif defined(ESP8266) // bei einem ESP8266-Board
+#elif defined(ESP8266) // ESP8266 board
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #endif
@@ -194,20 +194,19 @@ boolean UniversalUI::handle()
     // handle ui error blink off
     if (_userErrorMessageBlinkTill > 0 && (millis() > _userErrorMessageBlinkTill))
     {
-        checkStatusLed();
+        if (0 == _activityCount)
+            statusLedOff();
+        else
+            statusLedOn();
     }
     // update cycle for NTP queries
     if (NULL != _timeClient && ((long)(millis() - _lastNtpUpdateMs) >= (_ntpTimeValid ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL)))
     {
         _ntpTimeValid = _timeClient->forceUpdate();
         if (_ntpTimeValid)
-        {
             logInfo("time updated successfully from NTP");
-        }
         else
-        {
             logError("time update failed from NTP");
-        }
         _lastNtpUpdateMs = millis();
     }
     return true;
@@ -341,9 +340,9 @@ void UniversalUI::finishActivity()
     checkStatusLed();
 }
 
-void UniversalUI::reportUiError(String message, const byte blinkDurationInSeconds)
+void UniversalUI::reportUiError(const char *ptrToMessage, const byte blinkDurationInSeconds)
 {
-    _userErrorMessage = &message[0];
+    _userErrorMessage = ptrToMessage;
     _userErrorMessageBlinkTill = millis() + blinkDurationInSeconds * 1000;
     if (_userErrorMessageBlinkTill < millis())
     {
@@ -359,4 +358,12 @@ void UniversalUI::clearUiError()
     _userErrorMessage = nullptr;
     _userErrorMessageBlinkTill = 0;
     checkStatusLed();
+}
+bool UniversalUI::hasUiError()
+{
+    return nullptr != _userErrorMessage;
+}
+const char *UniversalUI::getUiErrorMessage()
+{
+    return _userErrorMessage;
 }

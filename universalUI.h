@@ -69,7 +69,7 @@ private:
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
     word _lastNtpUpdateMs = 0;
-    char *_userErrorMessage = nullptr;
+    const char *_userErrorMessage = nullptr;
     word _userErrorMessageBlinkTill = 0;
     /**
      * Number of current, independent activities.
@@ -162,14 +162,14 @@ public:
     void statusOk();
 
     /** Indicates error in user interaction (no system error).
-     * @param message message to show in webUI
-     * @param durationInSeconds
+     * @param ptrToMessage message to show in webUI (must be a static string: universalUi only stores the reference to it!)
+     * @param durationInSeconds how many seconds to error blink
      */
-    void reportUiError(String message, const byte blinkDurationInSeconds);
+    void reportUiError(const char* ptrToMessage, const byte blinkDurationInSeconds);
     /** Indicate that the error in user interaction has been resolved. */
     void clearUiError();
-    bool hasUiError() { return nullptr != _userErrorMessage; }
-    char *getUiErrorMessage() { return _userErrorMessage; }
+    bool hasUiError();
+    const char *getUiErrorMessage();
 
     const char *getStatusMessage()
     {
