@@ -165,16 +165,14 @@ public:
      * @param ptrToMessage message to show in webUI (must be a static string: universalUi only stores the reference to it!)
      * @param durationInSeconds how many seconds to error blink
      */
-    void reportUiError(const char* ptrToMessage, const byte blinkDurationInSeconds);
+    void reportUiError(const char *ptrToMessage, const byte blinkDurationInSeconds);
     /** Indicate that the error in user interaction has been resolved. */
     void clearUiError();
     bool hasUiError();
     const char *getUiErrorMessage();
 
-    const char *getStatusMessage()
-    {
-        return &_statusMessage[0];
-    }
+    bool hasStatusMessage() { return '\0'!=_statusMessage[0]; }
+    const char *getStatusMessage() { return _statusMessage.c_str(); }
 
     /**
      * To be called in <code>loop()</code>.
