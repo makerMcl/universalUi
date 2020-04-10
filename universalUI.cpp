@@ -256,7 +256,7 @@ const char *UniversalUI::getHtmlLog(const byte part)
     return _log.getLog(part);
 }
 
-Print &UniversalUI::log(const char *prefix)
+Print &UniversalUI::log(const __FlashStringHelper *prefix)
 {
     if (NULL != _timeClient && _ntpTimeValid)
     {
@@ -266,33 +266,33 @@ Print &UniversalUI::log(const char *prefix)
     {
         _log << _WIDTH(millis(), 8);
     }
-    _log << ": " << prefix;
+    _log << F(": ") << prefix;
     return _log;
 }
 
 Print &UniversalUI::logError()
 {
-    return log("ERROR \t");
+    return log(F("ERROR \t"));
 }
 
 Print &UniversalUI::logWarn()
 {
-    return log("WARN \t");
+    return log(F("WARN \t"));
 }
 
 Print &UniversalUI::logInfo()
 {
-    return log("INFO \t");
+    return log(F("INFO \t"));
 }
 
 Print &UniversalUI::logDebug()
 {
-    return log("DEBUG \t");
+    return log(F("DEBUG \t"));
 }
 
 Print &UniversalUI::logTrace()
 {
-    return log("TRACE \t");
+    return log(F("TRACE \t"));
 }
 void UniversalUI::printTimeInterval(char *buf, word m)
 {
@@ -311,7 +311,7 @@ char *UniversalUI::printTimeInterval(char *buf, word m, byte idx)
             buf += sprintf(buf, ", ");
         }
     }
-    buf += sprintf(buf, "%d%s", v, &(TIME_UNIT_LABEL[idx][0]));
+    buf += sprintf_P(buf, PSTR("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
     return buf;
 }
 
@@ -347,7 +347,7 @@ void UniversalUI::reportUiError(const char *ptrToMessage, const byte blinkDurati
     if (_userErrorMessageBlinkTill < millis())
     {
         // handle overflow: shorten blink time, blink till overflow value
-        logDebug() << "ui error blink with overflow: millis=" << millis() << ", should blink till" << _userErrorMessageBlinkTill << endl;
+        logDebug() << F("ui error blink with overflow: millis=") << millis() << F(", should blink till") << _userErrorMessageBlinkTill << endl;
         _userErrorMessageBlinkTill = -1000;
     }
     _statusLed.setBlink(200, 300);

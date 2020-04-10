@@ -80,7 +80,7 @@ private:
     void initOTA();
     void initWifi(const char *SSID, const char *WPSK);
     void statusErrorOta(const char *errorText);
-    Print &log(const char *prefix);
+    Print &log(const __FlashStringHelper *prefix);
     static char *printTimeInterval(char *buf, word m, byte idx);
     void checkStatusLed();
 
@@ -171,7 +171,7 @@ public:
     bool hasUiError();
     const char *getUiErrorMessage();
 
-    bool hasStatusMessage() { return '\0'!=_statusMessage[0]; }
+    bool hasStatusMessage() { return '\0' != _statusMessage[0]; }
     const char *getStatusMessage() { return _statusMessage.c_str(); }
 
     /**
@@ -194,7 +194,15 @@ public:
     {
         logError() << msg << endl;
     }
+    void logError(const __FlashStringHelper *msg)
+    {
+        logError() << msg << endl;
+    }
     void logWarn(const String msg)
+    {
+        logWarn() << msg << endl;
+    }
+    void logWarn(const __FlashStringHelper *msg)
     {
         logWarn() << msg << endl;
     }
@@ -202,7 +210,15 @@ public:
     {
         logInfo() << msg << endl;
     }
+    void logInfo(const __FlashStringHelper *msg)
+    {
+        logInfo() << msg << endl;
+    }
     void logDebug(const String msg)
+    {
+        logDebug() << msg << endl;
+    }
+    void logDebug(const __FlashStringHelper *msg)
     {
         logDebug() << msg << endl;
     }
