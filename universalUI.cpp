@@ -266,7 +266,7 @@ Print &UniversalUI::log(const __FlashStringHelper *prefix)
     {
         _log << _WIDTH(millis(), 8);
     }
-    _log << F(": ") << prefix;
+    _log << F("   ") << prefix;
     return _log;
 }
 
@@ -282,7 +282,7 @@ Print &UniversalUI::logWarn()
 
 Print &UniversalUI::logInfo()
 {
-    return log(F("INFO \t"));
+    return log(F("INFO  \t"));
 }
 
 Print &UniversalUI::logDebug()
