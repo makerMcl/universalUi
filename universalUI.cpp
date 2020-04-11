@@ -143,7 +143,7 @@ void UniversalUI::initOTA()
     ArduinoOTA.begin();
 }
 
-void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, const char *mainFileName, const char *buildTimestamp)
+void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
 {
     Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
     logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << ESP.getSdkVersion() << endl;

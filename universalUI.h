@@ -109,7 +109,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const char *mainFileName, const char *buildTimestamp)
+    void init(const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
     {
         init(NOT_A_PIN, mainFileName, buildTimestamp);
     }
@@ -120,7 +120,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin, const char *mainFileName, const char *buildTimestamp)
+    void init(const int statusLedPin, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
     {
         init(statusLedPin, false, mainFileName, buildTimestamp);
     }
@@ -132,7 +132,7 @@ public:
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
      */
-    void init(const int statusLedPin, const bool statusLedActiveOnLow, const char *mainFileName, const char *buildTimestamp);
+    void init(const int statusLedPin, const bool statusLedActiveOnLow, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp);
 
     /**
      * Sets current blink interval. LED off is 0, 0.
