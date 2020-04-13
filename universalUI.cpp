@@ -219,11 +219,11 @@ void UniversalUI::setBlink(const int onMillis, const int offMillis)
 
 void UniversalUI::statusLedOff()
 {
-    _statusLed.setBlink(0, 0);
+    _statusLed.off();
 }
 void UniversalUI::statusLedOn()
 {
-    _statusLed.setBlink(-1, 0);
+    _statusLed.on();
 }
 
 void UniversalUI::statusActive(const char *message)
