@@ -151,7 +151,8 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
     if (NOT_A_PIN != statusLedPin)
     {
         Serial << "setting status pin to " << statusLedPin << endl;
-        _statusLed.init(statusLedPin, statusLedActiveOnLow);
+        _statusLed = new BlinkLed();
+        _statusLed->init(statusLedPin, statusLedActiveOnLow);
     }
 
 #if defined(ESP32) || defined(ESP8266)
@@ -185,7 +186,7 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
 
 boolean UniversalUI::handle()
 {
-    _statusLed.update();
+    _statusLed->update();
     ArduinoOTA.handle();
     if (_otaActive)
     {
@@ -214,16 +215,21 @@ boolean UniversalUI::handle()
 
 void UniversalUI::setBlink(const int onMillis, const int offMillis)
 {
-    _statusLed.setBlink(onMillis, offMillis);
+    if (nullptr != _statusLed)
+    {
+        _statusLed->setBlink(onMillis, offMillis);
+    }
 }
 
 void UniversalUI::statusLedOff()
 {
-    _statusLed.off();
+    if (nullptr != _statusLed)
+        _statusLed->off();
 }
 void UniversalUI::statusLedOn()
 {
-    _statusLed.on();
+    if (nullptr != _statusLed)
+        _statusLed->on();
 }
 
 void UniversalUI::statusActive(const char *message)
@@ -241,7 +247,8 @@ void UniversalUI::statusError(const char *message)
 void UniversalUI::statusErrorOta(const char *errorText)
 {
     Serial << "setting status to error: " << errorText << endl;
-    _statusLed.setBlinkPattern4(OTA_ERROR_BLINK);
+    if (nullptr != _statusLed)
+        _statusLed->setBlinkPattern4(OTA_ERROR_BLINK);
     _statusMessage = errorText;
 }
 void UniversalUI::statusOk()
@@ -350,7 +357,8 @@ void UniversalUI::reportUiError(const char *ptrToMessage, const byte blinkDurati
         logDebug() << F("ui error blink with overflow: millis=") << millis() << F(", should blink till") << _userErrorMessageBlinkTill << endl;
         _userErrorMessageBlinkTill = -1000;
     }
-    _statusLed.setBlink(200, 300);
+    if (nullptr != _statusLed)
+        setBlink(200, 300);
 }
 /** Indicate that the error in user interaction has been resolved. */
 void UniversalUI::clearUiError()
