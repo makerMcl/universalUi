@@ -154,6 +154,10 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
         _statusLed = new BlinkLed();
         _statusLed->init(statusLedPin, statusLedActiveOnLow);
     }
+    else
+    {
+        _statusLed = nullptr;
+    }
 
 #if defined(ESP32) || defined(ESP8266)
     Serial << endl
@@ -186,7 +190,8 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
 
 boolean UniversalUI::handle()
 {
-    _statusLed->update();
+    if (nullptr != _statusLed)
+        _statusLed->update();
     ArduinoOTA.handle();
     if (_otaActive)
     {

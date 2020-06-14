@@ -62,7 +62,7 @@ class UniversalUI
 {
 private:
     const char *_appname;
-    BlinkLed *_statusLed = nullptr;
+    BlinkLed *_statusLed;
     String _statusMessage = "";
     LogBuffer _log = LogBuffer();
     bool _otaActive = false;
