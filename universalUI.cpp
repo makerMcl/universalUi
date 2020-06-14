@@ -28,7 +28,7 @@ You should have received a copy of the GNU General Public License along with thi
 const char *ssid = LOCAL_WIFI_SSID;
 const char *wpsk = LOCAL_WIFI_WPSK;
 
-word OTA_ERROR_BLINK[4] = {125, 125, 875, 125};
+blinkDuration_t OTA_ERROR_BLINK[4] = {125, 125, 875, 125};
 const int TIME_UNIT_DIVIDER[] = {1000, 60, 60, 24, 0};
 String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 
