@@ -14,12 +14,13 @@ You should have received a copy of the GNU General Public License along with thi
 #if defined(ESP32) // ESP32 board
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 #elif defined(ESP8266) // ESP8266 board
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
-#endif
-#include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#endif
+// #include <WiFiUdp.h>
 #include <NTPClient.h>
 
 #include "universalUIsettings.h"
@@ -39,6 +40,7 @@ void UniversalUI::initWifi(const char *SSID, const char *WPSK)
 #elif defined(ESP8266)
     WiFi.hostname(_appname);
 #endif
+#if defined(ESP32) || defined(ESP8266)
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, wpsk);
     int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
@@ -79,6 +81,7 @@ void UniversalUI::initWifi(const char *SSID, const char *WPSK)
             Serial << "unknown";
         };
         Serial << ")" << endl;
+#endif
 #ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
         Serial << "restarting..." << endl;
         delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
@@ -89,6 +92,7 @@ void UniversalUI::initWifi(const char *SSID, const char *WPSK)
 
 void UniversalUI::initOTA()
 {
+#if defined(ESP32) || defined(ESP8266)
     ArduinoOTA
         .onStart([this]() {
             String type;
@@ -141,6 +145,7 @@ void UniversalUI::initOTA()
     ArduinoOTA.setPort(OTA_PORT);
     ArduinoOTA.setPasswordHash(OTA_AUTH_MD5);
     ArduinoOTA.begin();
+#endif
 }
 
 void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
@@ -192,11 +197,13 @@ boolean UniversalUI::handle()
 {
     if (nullptr != _statusLed)
         _statusLed->update();
+#if defined(ESP32) || defined(ESP8266)
     ArduinoOTA.handle();
     if (_otaActive)
     {
         return false;
     }
+#endif
     // handle ui error blink off
     if (_userErrorMessageBlinkTill > 0 && (millis() > _userErrorMessageBlinkTill))
     {
