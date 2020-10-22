@@ -157,7 +157,7 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
     {
         Serial << "setting status pin to " << statusLedPin << endl;
         _statusLed = new BlinkLed();
-        _statusLed->init(statusLedPin, statusLedActiveOnLow);
+        _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
     }
     else
     {
