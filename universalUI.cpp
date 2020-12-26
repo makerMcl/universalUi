@@ -313,10 +313,6 @@ Print &UniversalUI::logTrace()
 {
     return log(F("TRACE \t"));
 }
-void UniversalUI::printTimeInterval(char *buf, word m)
-{
-    printTimeInterval(buf, m, 0);
-}
 /** @return append position */
 char *UniversalUI::printTimeInterval(char *buf, word m, byte idx)
 {
@@ -332,6 +328,20 @@ char *UniversalUI::printTimeInterval(char *buf, word m, byte idx)
     }
     buf += sprintf_P(buf, PSTR("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
     return buf;
+}
+void UniversalUI::appendTimeInterval(AppendBuffer *buf, word m, byte idx)
+{
+    const byte v = m % TIME_UNIT_DIVIDER[idx];
+    if (0 < TIME_UNIT_DIVIDER[idx])
+    {
+        m /= TIME_UNIT_DIVIDER[idx];
+        if (m > 0)
+        {
+            appendTimeInterval(buf, m, idx + 1);
+            buf->append_P(F(", "));
+        }
+    }
+    buf->sprintf_P(F("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
 }
 
 void UniversalUI::startActivity()

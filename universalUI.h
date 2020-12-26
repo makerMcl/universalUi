@@ -19,6 +19,7 @@ You should have received a copy of the GNU General Public License along with thi
 #include "universalUIsettings.h"
 #include "logBuffer.h"
 #include "blinkLed.h"
+#include "appendBuffer.h"
 
 // configuration section, to be modified via earlier #define's
 #ifndef NTP_UPDATE_INTERVAL
@@ -82,6 +83,8 @@ private:
     void statusErrorOta(const char *errorText);
     Print &log(const __FlashStringHelper *prefix);
     static char *printTimeInterval(char *buf, word m, byte idx);
+    static void appendTimeInterval(AppendBuffer *buf, word m, byte idx);
+
     void checkStatusLed();
 
 public:
@@ -225,6 +228,13 @@ public:
 
     const char *getHtmlLog(const byte part);
 
-    static void printTimeInterval(char *buf, word millis);
+    static void printTimeInterval(char *buf, word millis)
+    {
+        printTimeInterval(buf, millis, 0);
+    }
+    static void appendTimeInterval(AppendBuffer *buf, word millis)
+    {
+        appendTimeInterval(buf, millis, 0);
+    }
 }; // of class UniversalUI
 #endif
