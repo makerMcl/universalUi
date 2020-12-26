@@ -329,7 +329,7 @@ char *UniversalUI::printTimeInterval(char *buf, word m, byte idx)
     buf += sprintf_P(buf, PSTR("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
     return buf;
 }
-void UniversalUI::appendTimeInterval(AppendBuffer *buf, word m, byte idx)
+void UniversalUI::appendTimeInterval(AppendBuffer buf, word m, byte idx)
 {
     const byte v = m % TIME_UNIT_DIVIDER[idx];
     if (0 < TIME_UNIT_DIVIDER[idx])
@@ -338,10 +338,10 @@ void UniversalUI::appendTimeInterval(AppendBuffer *buf, word m, byte idx)
         if (m > 0)
         {
             appendTimeInterval(buf, m, idx + 1);
-            buf->append_P(F(", "));
+            buf.append_P(F(", "));
         }
     }
-    buf->sprintf_P(F("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
+    buf.sprintf_P(F("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
 }
 
 void UniversalUI::startActivity()

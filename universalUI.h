@@ -83,7 +83,7 @@ private:
     void statusErrorOta(const char *errorText);
     Print &log(const __FlashStringHelper *prefix);
     static char *printTimeInterval(char *buf, word m, byte idx);
-    static void appendTimeInterval(AppendBuffer *buf, word m, byte idx);
+    static void appendTimeInterval(AppendBuffer buf, word m, byte idx);
 
     void checkStatusLed();
 
@@ -105,6 +105,10 @@ public:
     bool isNtpTimeValid()
     {
         return _timeClient != NULL && _ntpTimeValid;
+    }
+
+    String getFormattedTime() {
+        return _timeClient->getFormattedTime();
     }
 
     /** 
@@ -232,7 +236,7 @@ public:
     {
         printTimeInterval(buf, millis, 0);
     }
-    static void appendTimeInterval(AppendBuffer *buf, word millis)
+    static void appendTimeInterval(AppendBuffer buf, word millis)
     {
         appendTimeInterval(buf, millis, 0);
     }
