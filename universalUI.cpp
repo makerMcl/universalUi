@@ -341,7 +341,7 @@ void UniversalUI::appendTimeInterval(AppendBuffer buf, word m, byte idx)
             buf.append_P(F(", "));
         }
     }
-    buf.sprintf_P(F("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
+    buf.printf(F("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
 }
 
 void UniversalUI::startActivity()
