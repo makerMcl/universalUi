@@ -13,7 +13,10 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         if (ui.hasStatusMessage())
         {
             buf.reset();
-            buf.printf(F("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: %s</p>"), ui.getStatusMessage());
+            //buf.printf_P(PSTR("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: %s</p>"), ui.getStatusMessage());
+            buf.append_P(F("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: "));
+            buf.append(ui.getStatusMessage());
+            buf.append_P(F("</p>"));
             return buf.c_str();
         }
         else
@@ -64,12 +67,12 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         buf.reset();
         if (ui.isNtpTimeValid())
         {
-            buf.printf(F("%lu @ %s"), millis(), ui.getFormattedTime().c_str());
+            buf.printf_P(PSTR("%lu @ %s"), millis(), ui.getFormattedTime().c_str());
             return buf.c_str();
         }
         else
         {
-            buf.printf(F("%lu ms"), millis());
+            buf.printf_P(PSTR("%lu ms"), millis());
             return buf.c_str();
         }
     }
@@ -78,7 +81,7 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         if (ui.hasUiError())
         {
             buf.reset();
-            buf.printf(F("<h3 style='color:red;'>%s</h3>"), &ui.getUiErrorMessage()[0]);
+            buf.printf_P(PSTR("<h3 style='color:red;'>%s</h3>"), &ui.getUiErrorMessage()[0]);
             return buf.c_str();
         }
         else
@@ -115,7 +118,11 @@ public:
         if (_webuiRefreshEnabled && _webuiRefresh > 0)
         {
             buf.reset();
-            buf.printf(F("<meta http-equiv=\"refresh\" content=\"%d;url=%s?r=%d#refresh\">"), _webuiRefresh, uri.c_str(), _webuiRefresh);
+            // TODO
+            //buf.printf_P(PSTR("<meta http-equiv=\"refresh\" content=\"%d;url=%s?r=%d#refresh\">"), _webuiRefresh, uri.c_str(), _webuiRefresh);
+            buf.append_P(F("<meta http-equiv=\"refresh\" content=\"5;url="));
+            buf.append(uri.c_str());
+            buf.append_P(F("?r=5#refresh\">"));
             return buf.c_str();
         }
         else
@@ -127,12 +134,12 @@ public:
     String getRefreshLink(AppendBuffer &buf, const String uri)
     {
         buf.reset();
-        // buf.printf(F("<a href=\"%s?r=%d\">"), uri.c_str(), (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : 1);
-        buf.append_P(F("<a href=\""));
-        buf.append(uri);
-        buf.append_P(F("?r="));
-        buf.append((_webuiRefreshEnabled && _webuiRefresh > 0) ? "0" : "1");
-        buf.append_P(F("\">"));
+        buf.printf(("<a href=\"%s?r=%d\">"), "index.html"/*uri.c_str()*/, (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : 1);
+        // buf.append_P(F("<a href=\""));
+        // buf.append(uri);
+        // buf.append_P(F("?r="));
+        // buf.append((_webuiRefreshEnabled && _webuiRefresh > 0) ? "0" : "1");
+        // buf.append_P(F("\">"));
         if (_webuiRefreshEnabled && _webuiRefresh > 0)
             buf.append_P(F("Stop"));
         else

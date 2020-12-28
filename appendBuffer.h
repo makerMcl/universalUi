@@ -9,24 +9,25 @@
 class AppendBuffer : public Print
 {
 public:
-    // void printf(char *format, ...)
-    // {
-    //     va_list args;
-    //     va_start(args, format);
-    //     const int remains = getRemainingSize();
-    //     const int written = snprintf(_appendPos, remains, format, args);
-    //     _appendPos += (written < remains) ? written : remains;
-    // }
-
-    // TODO bug - prints invalid memory area
-    /* Usage: <code>buf->sprintf_P(F("abc"), ...);</code> */
-    void printf(const __FlashStringHelper *pgmFormat...)
+    void printf(char *format, ...)
     {
         va_list args;
-        // va_start(args, pgmFormat);
+        va_start(args, format);
         const int remains = getRemainingSize();
-        const char *pFormat = (char *)pgmFormat;
-        const int written = snprintf_P(_appendPos, remains, pFormat, args);
+        const int written = snprintf(_appendPos, remains, format, args);
+        va_end(args);
+        _appendPos += (written < remains) ? written : remains;
+    }
+
+    // TODO bug - snprintf prints invalid memory area, obviously induced by formwarding varargs
+    /* Usage: <code>buf->sprintf_P(PSTR("abc"), ...);</code> */
+    void printf_P(const char *pstrFormat...)
+    {
+        va_list args;
+        va_start(args, pstrFormat);
+        const int remains = getRemainingSize();
+        const int written = snprintf_P(_appendPos, remains, pstrFormat, args);
+        va_end(args);
         _appendPos += (written < remains) ? written : remains;
     }
 
@@ -93,7 +94,6 @@ public:
         _buf = (char *)malloc(size);
         _appendPos = _buf;
     }
-
 
 private:
     size_t _maxsize;  // number of characters, including the trailing '\0'
