@@ -9,25 +9,18 @@
 class AppendBuffer : public Print
 {
 public:
-    void printf(char *format, ...)
-    {
-        va_list args;
-        va_start(args, format);
-        const int remains = getRemainingSize();
-        const int written = snprintf(_appendPos, remains, format, args);
-        va_end(args);
-        _appendPos += (written < remains) ? written : remains;
-    }
-
-    // TODO bug - snprintf prints invalid memory area, obviously induced by formwarding varargs
     /* Usage: <code>buf->sprintf_P(PSTR("abc"), ...);</code> */
     void printf_P(const char *pstrFormat...)
     {
         va_list args;
         va_start(args, pstrFormat);
-        const int remains = getRemainingSize();
-        const int written = snprintf_P(_appendPos, remains, pstrFormat, args);
+        vprintf_P(pstrFormat, args);
         va_end(args);
+    }
+    void vprintf_P(const char *pstrFormat, va_list args)
+    {
+        const int remains = getRemainingSize();
+        const int written = vsnprintf_P(_appendPos, remains, pstrFormat, args);
         _appendPos += (written < remains) ? written : remains;
     }
 

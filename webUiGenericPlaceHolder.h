@@ -118,11 +118,7 @@ public:
         if (_webuiRefreshEnabled && _webuiRefresh > 0)
         {
             buf.reset();
-            // TODO
-            //buf.printf_P(PSTR("<meta http-equiv=\"refresh\" content=\"%d;url=%s?r=%d#refresh\">"), _webuiRefresh, uri.c_str(), _webuiRefresh);
-            buf.append_P(F("<meta http-equiv=\"refresh\" content=\"5;url="));
-            buf.append(uri.c_str());
-            buf.append_P(F("?r=5#refresh\">"));
+            buf.printf_P(PSTR("<meta http-equiv=\"refresh\" content=\"%d;url=%s?r=%d#refresh\">"), _webuiRefresh, uri.c_str(), _webuiRefresh);
             return buf.c_str();
         }
         else
@@ -134,12 +130,7 @@ public:
     String getRefreshLink(AppendBuffer &buf, const String uri)
     {
         buf.reset();
-        buf.printf(("<a href=\"%s?r=%d\">"), "index.html"/*uri.c_str()*/, (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : 1);
-        // buf.append_P(F("<a href=\""));
-        // buf.append(uri);
-        // buf.append_P(F("?r="));
-        // buf.append((_webuiRefreshEnabled && _webuiRefresh > 0) ? "0" : "1");
-        // buf.append_P(F("\">"));
+        buf.printf(("<a href=\"%s?r=%d\">"), uri.c_str(), (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : 1);
         if (_webuiRefreshEnabled && _webuiRefresh > 0)
             buf.append_P(F("Stop"));
         else
