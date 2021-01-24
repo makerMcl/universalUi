@@ -117,8 +117,11 @@ class RefreshState
 private:
     byte _webuiRefresh = 0; // time interval in [seconds] for page refresh
     bool _webuiRefreshEnabled = true;
+    const byte _refreshTime;
 
 public:
+    RefreshState(const byte refreshTime = 1) : _refreshTime(refreshTime) {}
+
     void evaluateRefreshParameters(AsyncWebServerRequest *request)
     {
         if (request->hasParam(PARAM_REFRESH))
@@ -145,7 +148,7 @@ public:
     String getRefreshLink(AppendBuffer &buf, const String uri)
     {
         buf.reset();
-        buf.printf(("<a href=\"%s?r=%d\">"), uri.c_str(), (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : 1);
+        buf.printf(("<a href=\"%s?r=%d\">"), uri.c_str(), (_webuiRefreshEnabled && _webuiRefresh > 0) ? 0 : _refreshTime);
         if (_webuiRefreshEnabled && _webuiRefresh > 0)
             buf.append_P(F("Stop"));
         else
