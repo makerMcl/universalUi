@@ -1,5 +1,14 @@
 #ifndef WEBUI_GENERIC_PLACEHOLDER_H
 #define WEBUI_GENERIC_PLACEHOLDER_H
+
+#if defined(ESP32)
+#include <rom/rtc.h>
+#elif defined(ESP8266)
+extern "C"
+{
+#include "user_interface.h"
+}
+#endif
 #include "universalUIglobal.h"
 
 String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
@@ -26,6 +35,7 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
     }
     if (0 == strcmp_P(var.c_str(), PSTR("RESET_REASON")))
     {
+#if defined(ESP32)
         switch (rtc_get_reset_reason(0))
         {
         case 1:
@@ -61,6 +71,11 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         default:
             return F("NO_MEAN");
         }
+#elif defined(ESP8266)
+        return String(ESP.getResetReason());
+#else
+        return F("???");
+#endif
     }
     if (0 == strcmp_P(var.c_str(), PSTR("SYSTIME")))
     {
