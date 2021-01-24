@@ -40,12 +40,17 @@ private:
     char buf[LOGBUF_LENGTH + 1];
     word appendIndex = 0; // where to append next logged character
     bool clipped = false;
+    bool _encodePercent;
     void bufEnd();
     /** Increment given argument by one with handling rollover, returning the original value (next index to write to). */
     const word incWithRollover(word &idx);
 
 public:
-    LogBuffer();
+    /** 
+     * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
+     * @param encodePercent true if '%' in content should be stored as "%%"
+     */
+    LogBuffer(const bool encodePercent=false);
     virtual size_t write(uint8_t c);
     size_t write(const char *str);
     /** Get the log buffer content.

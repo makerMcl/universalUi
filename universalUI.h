@@ -65,7 +65,7 @@ private:
     const char *_appname;
     BlinkLed *_statusLed;
     String _statusMessage = "";
-    LogBuffer _log = LogBuffer();
+    LogBuffer _log = LogBuffer(true);
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
@@ -230,6 +230,9 @@ public:
         logDebug() << msg << endl;
     }
 
+    /** 
+     * Note: LogBuffer implements fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
+     */
     const char *getHtmlLog(const byte part);
 
     static void printTimeInterval(char *buf, word millis)

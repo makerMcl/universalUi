@@ -50,7 +50,7 @@ void LogBuffer::bufEnd()
     }
 }
 
-LogBuffer::LogBuffer()
+LogBuffer::LogBuffer(const bool encodePercent) : _encodePercent(encodePercent)
 {
     buf[LOGBUF_LENGTH] = '\0';
     buf[0] = '\0';
@@ -72,7 +72,12 @@ size_t LogBuffer::write(const char *msg)
     word i = 0;
     while (msg[i] != '\0')
     {
-        buf[incWithRollover(appendIndex)] = msg[i++];
+        buf[incWithRollover(appendIndex)] = msg[i];
+        if (_encodePercent && ('%' == msg[i]))
+        {
+            buf[incWithRollover(appendIndex)] = msg[i];
+        }
+        ++i;
     }
     bufEnd();
     return i;
@@ -83,6 +88,10 @@ size_t LogBuffer::write(uint8_t c)
     Serial.print((char)c);
 #endif
     buf[incWithRollover(appendIndex)] = c;
+    if (_encodePercent && ('%' == c))
+    {
+        buf[incWithRollover(appendIndex)] = c;
+    }
     bufEnd();
     return 1;
 }
