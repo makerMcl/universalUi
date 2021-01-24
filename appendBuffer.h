@@ -23,6 +23,16 @@ public:
         const int written = vsnprintf_P(_appendPos, remains, pstrFormat, args);
         _appendPos += (written < remains) ? written : remains;
     }
+    /** Convenience function - shortcut for: <code>abuf.reset(); abuf.printf_P(); return abuf.c_str();</code> */
+    const char *format(const char *pstrFormat...)
+    {
+        reset();
+        va_list args;
+        va_start(args, pstrFormat);
+        vprintf_P(pstrFormat, args);
+        va_end(args);
+        return c_str();
+    }
 
     /** Append string to this buffer */
     void append(const String &s)
