@@ -41,23 +41,96 @@ private:
     word appendIndex = 0; // where to append next logged character
     bool clipped = false;
     bool _encodePercent;
-    void bufEnd();
+    void bufEnd()
+    {
+        word p = appendIndex;
+        buf[incWithRollover(p)] = '\0';
+        if (clipped)
+        {
+            for (int i = 0; clippedMarker[i] != '\0'; ++i)
+            {
+                buf[incWithRollover(p)] = clippedMarker[i];
+            }
+        }
+    }
+
     /** Increment given argument by one with handling rollover, returning the original value (next index to write to). */
-    const word incWithRollover(word &idx);
+    const word incWithRollover(word &idx)
+    {
+        const word x = idx;
+        if (++idx >= LOGBUF_LENGTH)
+        {
+            idx = 0;
+            clipped = true;
+        }
+        return x;
+    }
 
 public:
     /** 
      * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
      * @param encodePercent true if '%' in content should be stored as "%%"
      */
-    LogBuffer(const bool encodePercent=false);
-    virtual size_t write(uint8_t c);
-    size_t write(const char *str);
+    LogBuffer(const bool encodePercent = false) : _encodePercent(encodePercent)
+    {
+        buf[LOGBUF_LENGTH] = '\0';
+        buf[0] = '\0';
+    }
+
+    virtual size_t write(uint8_t c)
+    {
+#ifdef COPY_TO_SERIAL
+        Serial.print((char)c);
+#endif
+        buf[incWithRollover(appendIndex)] = c;
+        if (_encodePercent && ('%' == c))
+        {
+            buf[incWithRollover(appendIndex)] = c;
+        }
+        bufEnd();
+        return 1;
+    }
+
+    size_t write(const char *msg)
+    {
+#ifdef COPY_TO_SERIAL
+        Serial.print(msg);
+#endif
+        word i = 0;
+        while (msg[i] != '\0')
+        {
+            buf[incWithRollover(appendIndex)] = msg[i];
+            if (_encodePercent && ('%' == msg[i]))
+            {
+                buf[incWithRollover(appendIndex)] = msg[i];
+            }
+            ++i;
+        }
+        bufEnd();
+        return i;
+    }
     /** Get the log buffer content.
      * Must be called twice, first with argument <code>0</code>, 2nd with argument <code>1</code>.
      */
-    const char *getLog(const byte part);
+    const char *getLog(const byte part)
+    {
+        if (0 == part)
+        {
+            return clipped ? &buf[appendIndex + 1] : &buf[0];
+        }
+        else if (1 == part && clipped)
+        {
+            return &buf[0];
+        }
+        return &clippedMarker[strlen(clippedMarker)]; // empty string
+    }
     /** Reset the log buffer to initial = empty state. */
-    void clear();
+    void clear()
+    {
+        clipped = false;
+        appendIndex = 0;
+        buf[LOGBUF_LENGTH] = '\0';
+        buf[0] = '\0';
+    }
 };
 #endif
