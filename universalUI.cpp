@@ -22,6 +22,11 @@ You should have received a copy of the GNU General Public License along with thi
 #endif
 // #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include <SPIFFS.h>
+extern "C"
+{
+#include "esp_spiffs.h"
+}
 
 #include "universalUIsettings.h"
 #include "universalUI.h"
@@ -33,15 +38,15 @@ blinkDuration_t OTA_ERROR_BLINK[4] = {125, 125, 875, 125};
 const int TIME_UNIT_DIVIDER[] = {1000, 60, 60, 24, 0};
 String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 
-void UniversalUI::initWifi(const char *SSID, const char *WPSK)
+void UniversalUI::reconnectWifi()
 {
-#if defined(ESP32)
-    WiFi.setHostname(_appname);
-#elif defined(ESP8266)
-    WiFi.hostname(_appname);
-#endif
 #if defined(ESP32) || defined(ESP8266)
+    logWarn() << "No connection, performing Wifi reset\n";
+    WiFi.persistent(false);
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
     WiFi.mode(WIFI_STA);
+    // WiFi.config(ip, gateway, subnet); // Only for fix IP needed
     WiFi.begin(ssid, wpsk);
     int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
     while (WiFi.status() != WL_CONNECTED && triesLeft > 0)
@@ -81,13 +86,14 @@ void UniversalUI::initWifi(const char *SSID, const char *WPSK)
             Serial << "unknown";
         };
         Serial << ")" << endl;
-#endif
 #ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
         Serial << "restarting..." << endl;
         delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
         ESP.restart();
 #endif
     }
+    _lastWifiReconnectCheck = millis();
+#endif
 }
 
 void UniversalUI::initOTA()
@@ -98,10 +104,14 @@ void UniversalUI::initOTA()
             String type;
             if (ArduinoOTA.getCommand() == U_FLASH)
                 type = "sketch";
-            else // U_SPIFFS
+            else
+            { // U_SPIFFS
                 type = "filesystem";
-
-            // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+                if (esp_spiffs_mounted(NULL)) // check if begin() has been called before
+                {
+                    SPIFFS.end();
+                }
+            }
             statusActive("OTA update");
             _otaActive = true;
             Serial.println("Start updating " + type);
@@ -168,7 +178,15 @@ void UniversalUI::init(const int statusLedPin, const bool statusLedActiveOnLow, 
     Serial << endl
            << "MAC address is " << WiFi.macAddress() << endl;
 
-    initWifi(ssid, wpsk);
+#if defined(ESP32)
+    WiFi.setHostname(_appname);
+#elif defined(ESP8266)
+    WiFi.hostname(_appname);
+#endif
+#if defined(ESP32) || defined(ESP8266)
+    reconnectWifi();
+#endif
+
     initOTA();
     if (NULL != _timeClient)
     {
@@ -198,6 +216,11 @@ boolean UniversalUI::handle()
     if (nullptr != _statusLed)
         _statusLed->update();
 #if defined(ESP32) || defined(ESP8266)
+    if ((WiFi.status() != WL_CONNECTED) && (millis() - _lastWifiReconnectCheck) > UNIVERSALUI_WIFI_RECONNECT_PERIOD)
+    {
+        reconnectWifi();
+    }
+
     ArduinoOTA.handle();
     if (_otaActive)
     {

@@ -31,10 +31,13 @@ You should have received a copy of the GNU General Public License along with thi
 #endif
 
 #ifndef UNIVERSALUI_WIFI_MAX_CONNECT_TRIES
-#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 5 // between each try is a delay of 500ms
+#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 10 // between each try is a delay of UNIVERSALUI_WIFI_RECONNECT_WAIT (defaults to 500ms), we should wait 3seconds at least
 #endif
 #ifndef UNIVERSALUI_WIFI_RECONNECT_WAIT
 #define UNIVERSALUI_WIFI_RECONNECT_WAIT 500 // in [ms], delay between next WiFi status check
+#endif
+#ifndef UNIVERSALUI_WIFI_RECONNECT_PERIOD
+#define UNIVERSALUI_WIFI_RECONNECT_PERIOD 30000 // 30sec in [ms], time to wait between WiFi reconnect attempts
 #endif
 
 // optional configuration settings, to be defined before including this file
@@ -69,7 +72,8 @@ private:
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
-    word _lastNtpUpdateMs = 0;
+    unsigned long _lastNtpUpdateMs = 0;
+    unsigned long _lastWifiReconnectCheck = 0;
     const char *_userErrorMessage = nullptr;
     word _userErrorMessageBlinkTill = 0;
     /**
@@ -79,7 +83,7 @@ private:
     byte _activityCount = 0;
 
     void initOTA();
-    void initWifi(const char *SSID, const char *WPSK);
+    void reconnectWifi();
     void statusErrorOta(const char *errorText);
     Print &log(const __FlashStringHelper *prefix);
     static char *printTimeInterval(char *buf, word m, byte idx);
@@ -107,7 +111,8 @@ public:
         return _timeClient != NULL && _ntpTimeValid;
     }
 
-    String getFormattedTime() {
+    String getFormattedTime()
+    {
         return _timeClient->getFormattedTime();
     }
 
