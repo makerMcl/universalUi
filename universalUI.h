@@ -21,16 +21,17 @@ You should have received a copy of the GNU General Public License along with thi
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
-#elif defined(ESP8266) // ESP8266 board
-#include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
-#include <ArduinoOTA.h>
-#endif
 #include <SPIFFS.h>
 extern "C"
 {
 #include "esp_spiffs.h"
 }
+#elif defined(ESP8266) // ESP8266 board
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
+#include <FS.h>
+#endif
 
 #include "universalUIsettings.h"
 #include "logBuffer.h"
@@ -119,10 +120,17 @@ private:
                 else
                 { // U_SPIFFS
                     type = "filesystem";
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#if defined(ESP32)
                     if (esp_spiffs_mounted(NULL)) // check if begin() has been called before
                     {
                         SPIFFS.end();
                     }
+#elif defined(ESP8266)
+                    SPIFFS.end();
+#endif
+#pragma GCC diagnostic pop
                 }
                 statusActive("OTA update");
                 _otaActive = true;
@@ -300,6 +308,10 @@ public:
     UniversalUI(const char *appname)
     {
         _appname = appname;
+    }
+
+    const char* getAppName() const {
+        return _appname;
     }
 
     void setNtpClient(NTPClient *timeClient)

@@ -13,6 +13,8 @@ extern "C"
 
 String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
 {
+    if (0 == strcmp_P(var.c_str(), PSTR("APPNAME")))
+        return ui.getAppName();
     if (0 == strcmp_P(var.c_str(), PSTR("__TIMESTAMP__")))
         return F(__TIMESTAMP__);
     if (0 == strcmp_P(var.c_str(), PSTR("STATUS")))
