@@ -361,6 +361,8 @@ public:
     void init(const int statusLedPin, const bool statusLedActiveOnLow, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
     {
         Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
+        while (!Serial)
+            ;
         logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << ESP.getSdkVersion() << endl;
         //Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
