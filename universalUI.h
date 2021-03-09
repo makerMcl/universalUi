@@ -310,7 +310,8 @@ public:
         _appname = appname;
     }
 
-    const char* getAppName() const {
+    const char *getAppName() const
+    {
         return _appname;
     }
 
@@ -326,7 +327,7 @@ public:
 
     String getFormattedTime()
     {
-        return _timeClient->getFormattedTime();
+        return (isNtpTimeValid()) ? _timeClient->getFormattedTime() : "";
     }
 
     /** 
