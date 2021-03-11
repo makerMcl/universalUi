@@ -74,7 +74,7 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
             return F("NO_MEAN");
         }
 #elif defined(ESP8266)
-        return String(ESP.getResetReason());
+        return ESP.getResetReason();
 #else
         return F("???");
 #endif
@@ -104,10 +104,12 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         else
             return "";
     }
-    if (0 == strcmp_P(var.c_str(), PSTR("LOG0")))
+    if (0 == strcmp_P(var.c_str(), PSTR("LOG0"))) {
         return ui.getHtmlLog(0);
-    if (0 == strcmp_P(var.c_str(), PSTR("LOG1")))
+    }
+    if (0 == strcmp_P(var.c_str(), PSTR("LOG1"))) {
         return ui.getHtmlLog(1);
+    }
     ui.logError() << F("DEBUG: variable not found: ") << var << endl;
     return F("???");
 }
