@@ -14,8 +14,8 @@ You should have received a copy of the GNU General Public License along with thi
 #ifndef LOG_BUFFER_H
 #define LOG_BUFFER_H
 
+#include <AsyncWebSynchronization.h>
 #include "universalUIsettings.h"
-
 /**
  * Collects all data into buf.
  * 
@@ -38,12 +38,13 @@ class LogBuffer : public Print
 private:
     char clippedMarker[7] = {'[', '.', '.', '.', ']', ' ', '\0'};
     char buf[LOGBUF_LENGTH + 1];
-    word appendIndex = 0; // where to append next logged character
+    size_t appendIndex = 0; // where to append next logged character
     bool clipped = false;
     bool _encodePercent;
+    AsyncWebLock xMutex = AsyncWebLock(); // need this since arduino loop and webserver run on different cores/threads
     void bufEnd()
     {
-        word p = appendIndex;
+        size_t p = appendIndex;
         buf[incWithRollover(p)] = '\0';
         if (clipped)
         {
@@ -55,7 +56,7 @@ private:
     }
 
     /** Increment given argument by one with handling rollover, returning the original value (next index to write to). */
-    const word incWithRollover(word &idx)
+    const word incWithRollover(size_t &idx)
     {
         const word x = idx;
         if (++idx >= LOGBUF_LENGTH)
@@ -82,12 +83,15 @@ public:
 #ifdef COPY_TO_SERIAL
         Serial.print((char)c);
 #endif
+        while (xMutex.lock())
+            ;
         buf[incWithRollover(appendIndex)] = c;
         if (_encodePercent && ('%' == c))
         {
             buf[incWithRollover(appendIndex)] = c;
         }
         bufEnd();
+        xMutex.unlock();
         return 1;
     }
 
@@ -97,6 +101,8 @@ public:
         Serial.print(msg);
 #endif
         word i = 0;
+        while (xMutex.lock())
+            ;
         while (msg[i] != '\0')
         {
             buf[incWithRollover(appendIndex)] = msg[i];
@@ -107,30 +113,114 @@ public:
             ++i;
         }
         bufEnd();
+        xMutex.unlock();
         return i;
     }
     /** Get the log buffer content.
      * Must be called twice, first with argument <code>0</code>, 2nd with argument <code>1</code>.
      */
-    const char *getLog(const byte part)
+    const char *getLog(const byte part) const
     {
+        const char *result;
+        while (xMutex.lock())
+            ;
         if (0 == part)
         {
-            return clipped ? &buf[appendIndex + 1] : &buf[0];
+            result = clipped ? &buf[appendIndex + 1] : &buf[0];
         }
         else if (1 == part && clipped)
         {
-            return &buf[0];
+            result = &buf[0];
         }
-        return &clippedMarker[strlen(clippedMarker)]; // empty string
+        else
+        {
+            result = &clippedMarker[strlen(clippedMarker)]; // empty string
+        }
+        xMutex.unlock();
+        return result;
     }
     /** Reset the log buffer to initial = empty state. */
     void clear()
     {
+        while (xMutex.lock())
+            ;
         clipped = false;
         appendIndex = 0;
         buf[LOGBUF_LENGTH] = '\0';
         buf[0] = '\0';
+        xMutex.unlock();
+    }
+
+    /**
+     * Fills the given buffer with data from the log buffer content.
+     * This method also takes care of rolling buffer overflow.
+     * 
+     * TODO If buffer rollover-position has advanced over index since last read, the new content is filled, that could lead to scrambled result?
+     * 
+     * @param targetBuf buffer to fill with data
+     * @param maxLen maximum number of bytes to fill into buf
+     * @param index logical start position of log buffer
+     * @param bufferRollIndex required request-specific state-memory, is initialized at first call (index==0)
+     * @return number of bytes filled into buf, or 0 if there is no more data available, or RESPONSE_TRY_AGAIN if maxLen is 0 and more content available
+     */
+    size_t getLog(uint8_t *targetBuf, size_t maxLen, size_t index, size_t &bufferRollIndex)
+    {
+        size_t result;
+        while (xMutex.lock())
+            ;
+        if (0 == index || !clipped)
+        {
+            bufferRollIndex = appendIndex;
+            Serial << "initialized bufferRollIndex=" << bufferRollIndex << " appendIndex=" << appendIndex << endl;
+        }
+        if (clipped)
+        {
+            if (index >= LOGBUF_LENGTH)
+            {
+                // buffer completely read
+                result = 0;
+            }
+            else if ((index + 1) < (LOGBUF_LENGTH - appendIndex))
+            {
+                Serial << "    part 0: maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
+                // part 0: appendIndex+1 .. LOGBUF_LENGTH;  length = (LOGBUF_LENGTH-appendIndex-1)
+                result = copyLog(targetBuf, maxLen, index, &buf[bufferRollIndex + 1], (LOGBUF_LENGTH - bufferRollIndex - 1));
+            }
+            else
+            {
+                Serial << "    part 1: maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
+                // part 1: 0 .. appendIndex-1;  length = appendIndex
+                result = copyLog(targetBuf, maxLen, index - (LOGBUF_LENGTH - bufferRollIndex -1), &buf[0], bufferRollIndex);
+            }
+        }
+        else
+        {
+            if (index < appendIndex)
+            {
+                Serial << "    logBuffer: all maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
+                // result = ((appendIndex - index) < maxLen) ? (appendIndex - index) : maxLen;
+                // memcpy(targetBuf, &buf[index], result);
+                result = copyLog(targetBuf, maxLen, index, &buf[0], bufferRollIndex);
+            }
+            else
+                result = 0;
+        }
+        xMutex.unlock();
+        return result;
+    }
+
+    /** Copies content from sourceBuf[startIndex] to targetBuf, taking care of available data lengths */
+    size_t copyLog(uint8_t *targetBuf, size_t maxTargetLen, size_t startIndex, char *sourceBuf, size_t availableLogLen)
+    {
+        if (0 == maxTargetLen && availableLogLen > 0)
+        {
+            Serial << "      logBuffer.copy: try again, availableLogLen=" << availableLogLen << endl;
+            return RESPONSE_TRY_AGAIN;
+        }
+        const size_t copyLen = ((availableLogLen - startIndex) < maxTargetLen) ? (availableLogLen - startIndex) : maxTargetLen;
+        Serial << "      logBuffer.copy: copyLen=" << copyLen << ", startIndex=" << startIndex << ", bufStartOfs=" << (sourceBuf - &buf[0]) << endl;
+        memcpy(targetBuf, &sourceBuf[startIndex], copyLen);
+        return copyLen;
     }
 };
 #endif

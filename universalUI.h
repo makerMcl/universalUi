@@ -633,6 +633,12 @@ public:
     {
         return _log.getLog(part);
     }
+    /**
+     * 
+     */
+    const size_t getHtmlLog(uint8_t *buf, size_t maxLen, size_t index, size_t& bufferRotationPoint) {
+        return _log.getLog(buf, maxLen, index, bufferRotationPoint);
+    }
 
     static void printTimeInterval(char *buf, word millis)
     {

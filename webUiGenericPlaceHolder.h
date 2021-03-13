@@ -104,12 +104,6 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         else
             return "";
     }
-    if (0 == strcmp_P(var.c_str(), PSTR("LOG0"))) {
-        return ui.getHtmlLog(0);
-    }
-    if (0 == strcmp_P(var.c_str(), PSTR("LOG1"))) {
-        return ui.getHtmlLog(1);
-    }
     ui.logError() << F("DEBUG: variable not found: ") << var << endl;
     return F("???");
 }
@@ -159,6 +153,118 @@ public:
             buf.append_P(F("Start"));
         buf.append_P(F(" Refresh</a>"));
         return buf.c_str();
+    }
+};
+
+static const char phPattern[] = {'$', 'L', 'O', 'G', '$'};                   // pattern to replace with content from log buffer
+static const size_t phPatternLen = sizeof(phPattern) / sizeof(phPattern[0]); // length of pattern
+
+class FileWithLogBufferResponseDataSource : public AwsResponseDataSource
+{
+private:
+    fs::File _content;
+    size_t fileReadPosition = 0;     // how many bytes for file read
+    size_t patternFoundPosition = 0; // next location of phPattern char to match
+    size_t bufferSourceIndex = 0;    // next index from log buffer, -1 for reading from file source
+    size_t bufferRotationPoint;
+
+public:
+    FileWithLogBufferResponseDataSource(fs::FS &fs, const String &path)
+    {
+        _content = fs.open(path, "r");
+    }
+
+    virtual size_t fillBuffer(uint8_t *buf, size_t maxLen, size_t index)
+    {
+        size_t filledLen = 0;
+        size_t targetMaxLen = maxLen;
+        uint8_t *targetBuf = buf;
+        Serial << "webui: start of fillBuffer(maxLen=" << maxLen << ", index=" << index << ")\n";
+        if ((bufferSourceIndex > 0) || (patternFoundPosition >= phPatternLen))
+        { // we are (still) reading from the log buffer
+            size_t bufferReadLen;
+            // read data from log buffer as long more data available and space left in buf
+            do
+            {
+                bufferReadLen = ui.getHtmlLog(targetBuf, targetMaxLen, bufferSourceIndex, bufferRotationPoint);
+                if (RESPONSE_TRY_AGAIN == bufferReadLen)
+                {
+                    return filledLen > 0 ? filledLen : RESPONSE_TRY_AGAIN;
+                }
+                bufferSourceIndex += bufferReadLen;
+                filledLen += bufferReadLen;
+                targetBuf += bufferReadLen;
+                targetMaxLen -= bufferReadLen;
+                Serial << "  webui: loaded buffer chunk " << bufferReadLen << ", maxLen=" << maxLen << ", targetMaxLen=" << targetMaxLen << endl;
+            } while (bufferReadLen > 0 && targetMaxLen > 0);
+            if (0 == bufferReadLen)
+            { // read complete log buffer, finished replacing pattern
+                bufferSourceIndex = 0;
+                patternFoundPosition = 0;
+            }
+            // fast exit, also avoid File.read() with a (remaining) buf size of 0
+            if (targetMaxLen <= 0)
+                return filledLen;
+        }
+
+        // read from file into buffer, we use *buf if AsyncWebResponse also for filtering
+        size_t readLen = _content.read(targetBuf, targetMaxLen);
+        if (0 == targetMaxLen && (readLen > 0))
+        {
+            Serial << "FATAL: readLen=" << readLen << ", targetMaxLen=0" << endl;
+            _content.seek(fileReadPosition);
+            return RESPONSE_TRY_AGAIN;
+        }
+        if (readLen > 0)
+        {
+            // search for bufferPlaceHolder
+            size_t bufSearchPosition = 0;
+            while ((bufSearchPosition < readLen) && (patternFoundPosition < phPatternLen))
+            {
+                if ((phPattern[patternFoundPosition] == targetBuf[bufSearchPosition++]))
+                {
+                    ++patternFoundPosition;
+                }
+                else
+                    patternFoundPosition = 0;
+            }
+            if ((patternFoundPosition > 0) && (bufSearchPosition >= readLen))
+            {
+                // special handling for possible found placeholder not completely read - introspect next possible bytes to possibly complete pattern
+                const size_t remainingPatternLen = (phPatternLen - patternFoundPosition + 1);
+                uint8_t tempBuf[remainingPatternLen];
+                const size_t tempReadLen = _content.read(tempBuf, remainingPatternLen);
+                readLen += tempReadLen;
+                // specifically search for the remaining pattern, only to know if pattern is there
+                size_t tempSearchPosition = 0;
+                while ((tempSearchPosition < remainingPatternLen) && (patternFoundPosition < phPatternLen) && (phPattern[patternFoundPosition] == tempBuf[tempSearchPosition++]))
+                    ++patternFoundPosition;
+                if (patternFoundPosition < phPatternLen)
+                { // read-ahead was not successful
+                    _content.seek(fileReadPosition - tempReadLen);
+                } // else: pattern was completely found, file position should be directly behind pattern
+            }
+            if (patternFoundPosition >= phPatternLen)
+            {
+                Serial << "  webui: found pattern at pos=" << bufSearchPosition << endl;
+                // we found complete pattern
+                bufferSourceIndex = 0;
+                // next time re-read too many bytes already read from file
+                fileReadPosition = (fileReadPosition + readLen) - (readLen - bufSearchPosition); // TODO +1 , optimize expression ??
+                _content.seek(fileReadPosition);                                                 // start next file delivery directly after pattern
+                return filledLen + (bufSearchPosition - patternFoundPosition);                   // deliver the characters before the pattern
+            }
+            else
+                return filledLen + readLen; // found no pattern, deliver complete chunk
+        }
+        else // reached end of file
+            return 0;
+    }
+
+    virtual ~FileWithLogBufferResponseDataSource()
+    {
+        if (_content)
+            _content.close();
     }
 };
 
