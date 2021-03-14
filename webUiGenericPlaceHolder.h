@@ -10,6 +10,7 @@ extern "C"
 }
 #endif
 #include "universalUIglobal.h"
+#include "debug.h"
 
 String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
 {
@@ -179,7 +180,8 @@ public:
         size_t filledLen = 0;
         size_t targetMaxLen = maxLen;
         uint8_t *targetBuf = buf;
-        Serial << "webui: start of fillBuffer(maxLen=" << maxLen << ", index=" << index << ")\n";
+        LOGBUFFER_DEBUG("webui: start of fillBuffer with maxLen=", maxLen)
+        LOGBUFFER_DEBUGN(", index=", index)
         if ((bufferSourceIndex > 0) || (patternFoundPosition >= phPatternLen))
         { // we are (still) reading from the log buffer
             size_t bufferReadLen;
@@ -195,7 +197,16 @@ public:
                 filledLen += bufferReadLen;
                 targetBuf += bufferReadLen;
                 targetMaxLen -= bufferReadLen;
-                Serial << "  webui: loaded buffer chunk " << bufferReadLen << ", maxLen=" << maxLen << ", targetMaxLen=" << targetMaxLen << endl;
+                LOGBUFFER_DEBUG("  webui: loaded buffer chunk ", bufferReadLen)
+                LOGBUFFER_DEBUG(", maxLen=", maxLen)
+                LOGBUFFER_DEBUGN(", targetMaxLen=", targetMaxLen)
+                #ifdef VERBOSE_DEBUG_LOGBUFFER
+                Serial.print("  webui: 3>");
+                for (int i=0; i<filledLen;++i) {
+                    Serial.print((char)buf[i]);
+                }
+                Serial.println("<3");
+                #endif
             } while (bufferReadLen > 0 && targetMaxLen > 0);
             if (0 == bufferReadLen)
             { // read complete log buffer, finished replacing pattern
@@ -207,14 +218,15 @@ public:
                 return filledLen;
         }
 
-        // read from file into buffer, we use *buf if AsyncWebResponse also for filtering
         size_t readLen = _content.read(targetBuf, targetMaxLen);
         if (0 == targetMaxLen && (readLen > 0))
         {
-            Serial << "FATAL: readLen=" << readLen << ", targetMaxLen=0" << endl;
+            // more potential data, but _ack() has no space
+            LOGBUFFER_DEBUGN("!! WARN: targetMaxLen=0, readLen=", readLen)
             _content.seek(fileReadPosition);
             return RESPONSE_TRY_AGAIN;
         }
+        // we use *buf if AsyncWebResponse also for filtering
         if (readLen > 0)
         {
             // search for bufferPlaceHolder
@@ -246,7 +258,7 @@ public:
             }
             if (patternFoundPosition >= phPatternLen)
             {
-                Serial << "  webui: found pattern at pos=" << bufSearchPosition << endl;
+                LOGBUFFER_DEBUGN("  webui: found pattern at pos=", bufSearchPosition)
                 // we found complete pattern
                 bufferSourceIndex = 0;
                 // next time re-read too many bytes already read from file
@@ -257,8 +269,12 @@ public:
             else
                 return filledLen + readLen; // found no pattern, deliver complete chunk
         }
-        else // reached end of file
+        else
+        {
+            // reached end of file
+            LOGBUFFER_DEBUGN("end-of-file at deliveredBytes=", index)
             return 0;
+        }
     }
 
     virtual ~FileWithLogBufferResponseDataSource()

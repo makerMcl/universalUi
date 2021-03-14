@@ -16,6 +16,8 @@ You should have received a copy of the GNU General Public License along with thi
 
 #include <AsyncWebSynchronization.h>
 #include "universalUIsettings.h"
+#include "debuglog.h"
+
 /**
  * Collects all data into buf.
  * 
@@ -171,7 +173,8 @@ public:
         if (0 == index || !clipped)
         {
             bufferRollIndex = appendIndex;
-            Serial << "initialized bufferRollIndex=" << bufferRollIndex << " appendIndex=" << appendIndex << endl;
+            LOGBUFFER_DEBUG("initialized bufferRollIndex=", bufferRollIndex)
+            LOGBUFFER_DEBUGN(" appendIndex=", appendIndex);
         }
         if (clipped)
         {
@@ -182,22 +185,28 @@ public:
             }
             else if ((index + 1) < (LOGBUF_LENGTH - appendIndex))
             {
-                Serial << "    part 0: maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
                 // part 0: appendIndex+1 .. LOGBUF_LENGTH;  length = (LOGBUF_LENGTH-appendIndex-1)
+                LOGBUFFER_DEBUG("    part 0: maxLen=", maxLen)
+                LOGBUFFER_DEBUG(", index=", index)
+                LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex)
                 result = copyLog(targetBuf, maxLen, index, &buf[bufferRollIndex + 1], (LOGBUF_LENGTH - bufferRollIndex - 1));
             }
             else
             {
-                Serial << "    part 1: maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
+                LOGBUFFER_DEBUG("    part 1: maxLen=", maxLen)
+                LOGBUFFER_DEBUG(", index=", index)
+                LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex);
                 // part 1: 0 .. appendIndex-1;  length = appendIndex
-                result = copyLog(targetBuf, maxLen, index - (LOGBUF_LENGTH - bufferRollIndex -1), &buf[0], bufferRollIndex);
+                result = copyLog(targetBuf, maxLen, index - (LOGBUF_LENGTH - bufferRollIndex - 1), &buf[0], bufferRollIndex);
             }
         }
         else
         {
             if (index < appendIndex)
             {
-                Serial << "    logBuffer: all maxLen=" << maxLen << ", index=" << index << ", bufferRollIndex=" << bufferRollIndex << endl;
+                LOGBUFFER_DEBUG("    logBuffer: all maxLen=", maxLen)
+                LOGBUFFER_DEBUG(", index=", index)
+                LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex)
                 // result = ((appendIndex - index) < maxLen) ? (appendIndex - index) : maxLen;
                 // memcpy(targetBuf, &buf[index], result);
                 result = copyLog(targetBuf, maxLen, index, &buf[0], bufferRollIndex);
@@ -214,12 +223,37 @@ public:
     {
         if (0 == maxTargetLen && availableLogLen > 0)
         {
-            Serial << "      logBuffer.copy: try again, availableLogLen=" << availableLogLen << endl;
+            LOGBUFFER_DEBUGN( "      logBuffer.copy: try again, availableLogLen=", availableLogLen )
             return RESPONSE_TRY_AGAIN;
         }
         const size_t copyLen = ((availableLogLen - startIndex) < maxTargetLen) ? (availableLogLen - startIndex) : maxTargetLen;
-        Serial << "      logBuffer.copy: copyLen=" << copyLen << ", startIndex=" << startIndex << ", bufStartOfs=" << (sourceBuf - &buf[0]) << endl;
+        LOGBUFFER_DEBUG("      logBuffer.copy: copyLen=", copyLen)
+        LOGBUFFER_DEBUG(", startIndex=", startIndex)
+        LOGBUFFER_DEBUGN(", bufStartOfs=", (sourceBuf - &buf[0]))
+#ifdef VERBOSE_DEBUG
+        if (0 == startIndex)
+        {
+            Serial.print("      logBuffer.copy: 1>");
+            for (size_t i = 0; i < copyLen; ++i)
+            {
+                Serial.print((char)sourceBuf[startIndex + i]);
+            }
+            Serial.println("<1");
+        }
+#endif
         memcpy(targetBuf, &sourceBuf[startIndex], copyLen);
+
+#ifdef VERBOSE_DEBUG
+        if (0 == startIndex)
+        {
+            Serial.print("      logBuffer.copy: 2>");
+            for (size_t i = 0; i < copyLen; ++i)
+            {
+                Serial.print((char)targetBuf[i]);
+            }
+            Serial.println("<2 ");
+        }
+#endif
         return copyLen;
     }
 };
