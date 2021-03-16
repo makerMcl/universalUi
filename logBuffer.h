@@ -69,6 +69,45 @@ private:
         return x;
     }
 
+    /** Copies content from sourceBuf[startIndex] to targetBuf, taking care of available data lengths */
+    size_t copyLog(uint8_t *targetBuf, size_t maxTargetLen, size_t startIndex, char *sourceBuf, size_t availableLogLen)
+    {
+        if (0 == maxTargetLen && availableLogLen > 0)
+        {
+            LOGBUFFER_DEBUGN("      logBuffer.copy: try again, availableLogLen=", availableLogLen)
+            return RESPONSE_TRY_AGAIN;
+        }
+        const size_t copyLen = ((availableLogLen - startIndex) < maxTargetLen) ? (availableLogLen - startIndex) : maxTargetLen;
+        LOGBUFFER_DEBUG("      logBuffer.copy: copyLen=", copyLen)
+        LOGBUFFER_DEBUG(", startIndex=", startIndex)
+        LOGBUFFER_DEBUGN(", bufStartOfs=", (sourceBuf - &buf[0]))
+#ifdef VERBOSE_DEBUG
+        if (0 == startIndex)
+        {
+            Serial.print("      logBuffer.copy: 1>");
+            for (size_t i = 0; i < copyLen; ++i)
+            {
+                Serial.print((char)sourceBuf[startIndex + i]);
+            }
+            Serial.println("<1");
+        }
+#endif
+        memcpy(targetBuf, &sourceBuf[startIndex], copyLen);
+
+#ifdef VERBOSE_DEBUG
+        if (0 == startIndex)
+        {
+            Serial.print("      logBuffer.copy: 2>");
+            for (size_t i = 0; i < copyLen; ++i)
+            {
+                Serial.print((char)targetBuf[i]);
+            }
+            Serial.println("<2 ");
+        }
+#endif
+        return copyLen;
+    }
+
 public:
     /** 
      * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
@@ -86,7 +125,7 @@ public:
         Serial.print((char)c);
 #endif
         while (xMutex.lock())
-            ;
+            yield(); // we expect to be in the arduino thread here
         buf[incWithRollover(appendIndex)] = c;
         if (_encodePercent && ('%' == c))
         {
@@ -104,7 +143,7 @@ public:
 #endif
         word i = 0;
         while (xMutex.lock())
-            ;
+            yield(); // we expect to be in the arduino thread here
         while (msg[i] != '\0')
         {
             buf[incWithRollover(appendIndex)] = msg[i];
@@ -118,6 +157,19 @@ public:
         xMutex.unlock();
         return i;
     }
+
+    /** Reset the log buffer to initial = empty state. */
+    void clear()
+    {
+        while (xMutex.lock())
+            yield();
+        clipped = false;
+        appendIndex = 0;
+        buf[LOGBUF_LENGTH] = '\0';
+        buf[0] = '\0';
+        xMutex.unlock();
+    }
+
     /** Get the log buffer content.
      * Must be called twice, first with argument <code>0</code>, 2nd with argument <code>1</code>.
      */
@@ -125,7 +177,7 @@ public:
     {
         const char *result;
         while (xMutex.lock())
-            ;
+            esp_yield(); // note: we are not in the arduino thread here
         if (0 == part)
         {
             result = clipped ? &buf[appendIndex + 1] : &buf[0];
@@ -140,17 +192,6 @@ public:
         }
         xMutex.unlock();
         return result;
-    }
-    /** Reset the log buffer to initial = empty state. */
-    void clear()
-    {
-        while (xMutex.lock())
-            ;
-        clipped = false;
-        appendIndex = 0;
-        buf[LOGBUF_LENGTH] = '\0';
-        buf[0] = '\0';
-        xMutex.unlock();
     }
 
     /**
@@ -169,7 +210,7 @@ public:
     {
         size_t result;
         while (xMutex.lock())
-            ;
+            esp_yield(); // note: we are not in the arduino thread here
         if (0 == index || !clipped)
         {
             bufferRollIndex = appendIndex;
@@ -216,45 +257,6 @@ public:
         }
         xMutex.unlock();
         return result;
-    }
-
-    /** Copies content from sourceBuf[startIndex] to targetBuf, taking care of available data lengths */
-    size_t copyLog(uint8_t *targetBuf, size_t maxTargetLen, size_t startIndex, char *sourceBuf, size_t availableLogLen)
-    {
-        if (0 == maxTargetLen && availableLogLen > 0)
-        {
-            LOGBUFFER_DEBUGN( "      logBuffer.copy: try again, availableLogLen=", availableLogLen )
-            return RESPONSE_TRY_AGAIN;
-        }
-        const size_t copyLen = ((availableLogLen - startIndex) < maxTargetLen) ? (availableLogLen - startIndex) : maxTargetLen;
-        LOGBUFFER_DEBUG("      logBuffer.copy: copyLen=", copyLen)
-        LOGBUFFER_DEBUG(", startIndex=", startIndex)
-        LOGBUFFER_DEBUGN(", bufStartOfs=", (sourceBuf - &buf[0]))
-#ifdef VERBOSE_DEBUG
-        if (0 == startIndex)
-        {
-            Serial.print("      logBuffer.copy: 1>");
-            for (size_t i = 0; i < copyLen; ++i)
-            {
-                Serial.print((char)sourceBuf[startIndex + i]);
-            }
-            Serial.println("<1");
-        }
-#endif
-        memcpy(targetBuf, &sourceBuf[startIndex], copyLen);
-
-#ifdef VERBOSE_DEBUG
-        if (0 == startIndex)
-        {
-            Serial.print("      logBuffer.copy: 2>");
-            for (size_t i = 0; i < copyLen; ++i)
-            {
-                Serial.print((char)targetBuf[i]);
-            }
-            Serial.println("<2 ");
-        }
-#endif
-        return copyLen;
     }
 };
 #endif
