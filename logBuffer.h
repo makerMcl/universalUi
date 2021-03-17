@@ -18,6 +18,14 @@ You should have received a copy of the GNU General Public License along with thi
 #include "universalUIsettings.h"
 #include "debuglog.h"
 
+#if defined(ESP32)
+#define MUTEX_YIELD yield()
+#elif defined(ESP8266)
+#define MUTEX_YIELD esp_yield()
+#else
+#define MUTEX_YIELD ;
+#endif
+
 /**
  * Collects all data into buf.
  * 
@@ -177,7 +185,7 @@ public:
     {
         const char *result;
         while (xMutex.lock())
-            esp_yield(); // note: we are not in the arduino thread here
+            MUTEX_YIELD; // note: we are not in the arduino thread here
         if (0 == part)
         {
             result = clipped ? &buf[appendIndex + 1] : &buf[0];
@@ -210,7 +218,7 @@ public:
     {
         size_t result;
         while (xMutex.lock())
-            esp_yield(); // note: we are not in the arduino thread here
+            MUTEX_YIELD; // note: we are not in the arduino thread here
         if (0 == index || !clipped)
         {
             bufferRollIndex = appendIndex;
