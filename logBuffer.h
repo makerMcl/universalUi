@@ -16,15 +16,15 @@ You should have received a copy of the GNU General Public License along with thi
 
 #include <AsyncWebSynchronization.h>
 #include "universalUIsettings.h"
-#include "debuglog.h"
 
-#if defined(ESP32)
-#define MUTEX_YIELD yield()
-#elif defined(ESP8266)
-#define MUTEX_YIELD esp_yield()
+#ifdef VERBOSE_DEBUG_LOGBUFFER
+#define LOGBUFFER_DEBUG(M, V) (Serial << M << V);
+#define LOGBUFFER_DEBUGN(M, V) (Serial << M << V << endl);
 #else
-#define MUTEX_YIELD ;
+#define LOGBUFFER_DEBUG(M, V) ;
+#define LOGBUFFER_DEBUGN(M, V) ;
 #endif
+
 
 /**
  * Collects all data into buf.
@@ -40,6 +40,18 @@ You should have received a copy of the GNU General Public License along with thi
  * <li><code>#define LOGBUF_LENGTH 51200</code> - default is 16 characters (for testing purpose)</li>
  * <li><code>COPY_TO_SERIAL</code> - if defined, logged data will be mirrored via Serial.print</li>
  */
+
+// need this (at least onesp32) since arduino loop and webserver might run on different cores/threads
+#if defined(ESP32)
+#define MUTEX_LOCK portENTER_CRITICAL(&logBuffer_mutex);
+#define MUTEX_UNLOCK portEXIT_CRITICAL(&logBuffer_mutex);
+static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
+#elif defined(ESP8266)
+#else
+#define MUTEX_LOCK ;
+#define MUTEX_UNLOCK ;
+#endif
+
 class LogBuffer : public Print
 {
 #ifndef LOGBUF_LENGTH    // expected to be set in main sketch
@@ -51,7 +63,6 @@ private:
     size_t appendIndex = 0; // where to append next logged character
     bool clipped = false;
     bool _encodePercent;
-    AsyncWebLock xMutex = AsyncWebLock(); // need this since arduino loop and webserver run on different cores/threads
     void bufEnd()
     {
         size_t p = appendIndex;
@@ -132,15 +143,13 @@ public:
 #ifdef COPY_TO_SERIAL
         Serial.print((char)c);
 #endif
-        while (xMutex.lock())
-            yield(); // we expect to be in the arduino thread here
+        MUTEX_LOCK;
         buf[incWithRollover(appendIndex)] = c;
         if (_encodePercent && ('%' == c))
         {
             buf[incWithRollover(appendIndex)] = c;
         }
-        bufEnd();
-        xMutex.unlock();
+        MUTEX_UNLOCK;
         return 1;
     }
 
@@ -150,8 +159,7 @@ public:
         Serial.print(msg);
 #endif
         word i = 0;
-        while (xMutex.lock())
-            yield(); // we expect to be in the arduino thread here
+        MUTEX_LOCK;
         while (msg[i] != '\0')
         {
             buf[incWithRollover(appendIndex)] = msg[i];
@@ -162,20 +170,19 @@ public:
             ++i;
         }
         bufEnd();
-        xMutex.unlock();
+        MUTEX_UNLOCK;
         return i;
     }
 
     /** Reset the log buffer to initial = empty state. */
     void clear()
     {
-        while (xMutex.lock())
-            yield();
+        MUTEX_LOCK;
         clipped = false;
         appendIndex = 0;
         buf[LOGBUF_LENGTH] = '\0';
         buf[0] = '\0';
-        xMutex.unlock();
+        MUTEX_UNLOCK;
     }
 
     /** Get the log buffer content.
@@ -184,8 +191,7 @@ public:
     const char *getLog(const byte part) const
     {
         const char *result;
-        while (xMutex.lock())
-            MUTEX_YIELD; // note: we are not in the arduino thread here
+        MUTEX_LOCK;; // note: we are not in the arduino thread here
         if (0 == part)
         {
             result = clipped ? &buf[appendIndex + 1] : &buf[0];
@@ -198,7 +204,7 @@ public:
         {
             result = &clippedMarker[strlen(clippedMarker)]; // empty string
         }
-        xMutex.unlock();
+        MUTEX_UNLOCK;
         return result;
     }
 
@@ -217,8 +223,7 @@ public:
     size_t getLog(uint8_t *targetBuf, size_t maxLen, size_t index, size_t &bufferRollIndex)
     {
         size_t result;
-        while (xMutex.lock())
-            MUTEX_YIELD; // note: we are not in the arduino thread here
+        MUTEX_LOCK; // note: we are not in the arduino thread here
         if (0 == index || !clipped)
         {
             bufferRollIndex = appendIndex;
@@ -263,7 +268,7 @@ public:
             else
                 result = 0;
         }
-        xMutex.unlock();
+        MUTEX_UNLOCK;
         return result;
     }
 };
