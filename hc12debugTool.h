@@ -30,11 +30,13 @@
  * #include "universalUIglobal.h"
  * void setup() {
  *   Hc12DebugTool hc12DebugTool(5);
- *   hc12DebugTool.setDebugPrinter(ui.logTrace());
  *   hc12DebugTool.setPreferredBaudrate(BPS115200);
  *   //...
  * }
  * </pre>
+ * 
+ * TODO/potential for more:
+ * <li>support more configuration details, e.g. transmission power (AT+P), channel (AT+C), UART transmission mode (AT+FU)
  */
 #ifndef _HC12_DEBUG_TOOL_H
 #define _HC12_DEBUG_TOOL_H
@@ -71,7 +73,9 @@ enum Hc12_BaudRate
 const char *const HC12_BAUDRATE_STRING[NUM_HC12_BAUDRATES] /*PROGMEM*/ = {"1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"};
 const unsigned long HC12_BAUDRATE_NUMERIC[NUM_HC12_BAUDRATES] = {1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
 
-const char *const COMMAND_AT /*PROGMEM*/ = "AT\r\n";
+// TODO convert to use it from progmem/flash; did not get it working yet
+const char *const COMMAND_AT /*PROGMEM*/ = "AT\r\n";  // AT-command must be line-terminated to indicate end-of-command
+const char *const RESPONSE_AT /*PROGMEM*/ = "OK\r\n"; // HC-12 terminates his responses always with \r\n (<13>,<10>)
 
 template <typename S>
 class Hc12DebugTool
@@ -85,16 +89,31 @@ public:
      * Optionally configure with fallback baudrate, to be set if command mode was not available. 
      * If fallback is set to value 0, no fallback is performed.
      * 
+     * Some notes on usage:<ul>
+     * <li>hc12debugTool tries to detect the current baudrate of the hc-12 module and will change if necessary.</li>
+     * <li>It is not necessary to call begin() beforehand on the hc12Serial interface.
+     * hc12DebugTool detects that and will will try to dete</li>
+     * 
      * @param setPin number of gpio the set pin of hc-12 module is/might be connected to.
-     * @param fallbackSerialTo if value>0 and command mode is not available, Serial baudrate shall be set to that value. Defaults to 9600 Baud!
-     * @param hc12Serial UART interface the hc-12 is connected to, defaults to UART0 (arduino Serial)
+     * @param hc12Serial UART interface (stack instance) the hc-12 is connected to
+     * @param debug Printer where activity info and unexpected bytes are written to
+     * @param fallbackSerialTo if value>0 and command mode is not available, Serial baudrate is set to that value. Defaults value is 9600 [Baud].
      * @param waitForAvailableWrite set to 0 if using SoftwareSerial! value >0 is number of milliseconds to wait for Serial.availableForWrite()
      */
+    // Note: one might need a mode without printing anything to debug... implement it if-needed using an additional flag and set-method
     Hc12DebugTool(uint8_t setPin,
                   S &hc12Serial,
+                  Print &debug,
                   uint32_t fallbackSerialTo = 9600,
-                  uint8_t waitForAvailableWrite = 0) : _setPinNo(setPin), _hc12Serial(hc12Serial), _fallbackSerialTo(fallbackSerialTo), _waitForAvailableWrite(waitForAvailableWrite) {}
+                  uint8_t waitForAvailableWrite = 0) : _setPinNo(setPin), _hc12Serial(hc12Serial), _debug(debug), _fallbackSerialTo(fallbackSerialTo), _waitForAvailableWrite(waitForAvailableWrite) {}
 
+    /**
+     * Sets the given baudrate for the module.
+     * 
+     * If a HC-12 module is detected, it will be configured using AT-command to the baudrate given as argument.
+     * 
+     * Note that this affects also air baud rate of HC-12 module, see datasheet for more details.
+     */
     void setPreferredBaudrate(Hc12_BaudRate baudRate)
     {
         if (!_setPinNo || !_hc12Serial)
@@ -107,47 +126,56 @@ public:
         delay(40); // wait to enter command mode
         // 1st attempt communication with HC-12 with pre-set baudrate
         bool commandModeEnabled = false;
-        if (sendValidatedCommand(COMMAND_AT, "OK\r\n", true))
+        if (_hc12Serial.isListening() && sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true))
         {
-            Serial.print("1 ");
             commandModeEnabled = true;
         }
         else
         {
-            changeBaudRate(9600);
-            if (sendValidatedCommand(COMMAND_AT, "OK\r\n", true))
+            // 1st try with preferred baudrate, in case it is already set at the module
+            dumpPendingBytes();
+            changeBaudRate(HC12_BAUDRATE_NUMERIC[baudRate]);
+            if (sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true))
             {
-                Serial.print("2 ");
-                _debug.print(F(" set hc12serial to 9600 baud, "));
+                _debug.print(F(" hc12serial found at preferred baudrate, "));
                 commandModeEnabled = true;
             }
             else
-                // try all existing baudrates
-                for (int i = 0; i < NUM_HC12_BAUDRATES; ++i)
+            {
+                // 2nd: try default of HC-12
+                changeBaudRate(9600);
+                if (sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true))
                 {
-                    changeBaudRate(HC12_BAUDRATE_NUMERIC[i]);
-                    _hc12Serial.flush();
-                    delay(10);
-                    dumpPendingBytes();
-                    if (sendValidatedCommand(COMMAND_AT, "OK\r\n", false))
-                    {
-                        _debug.print(F(" found hc12serial at "));
-                        _debug.print(HC12_BAUDRATE_STRING[i]);
-                        _debug.print(F(" baud, "));
-                        commandModeEnabled = true;
-                        break;
-                    }
+                    _debug.print(F(" hc12serial found at 9600 baud, "));
+                    commandModeEnabled = true;
                 }
+                else
+                    // try all existing baudrates
+                    for (int i = 0; i < NUM_HC12_BAUDRATES; ++i)
+                    {
+                        changeBaudRate(HC12_BAUDRATE_NUMERIC[i]);
+                        _hc12Serial.flush();
+                        delay(10);
+                        dumpPendingBytes();
+                        if (sendValidatedCommand(COMMAND_AT, RESPONSE_AT, false))
+                        {
+                            _debug.print(F(" found hc12serial at "));
+                            _debug.print(HC12_BAUDRATE_STRING[i]);
+                            _debug.print(F(" baud, "));
+                            commandModeEnabled = true;
+                            break;
+                        }
+                    }
+            }
         }
         // tolerate incoming, unexpected bytes, because there could be more on the line
         if (commandModeEnabled) // assume set pin is connected since connected module reacts to AT commands,
         {
-            Serial.print("3 ");
             // "AT+RB" - query baudrate: response should be: "OK+B9600"
             _hc12Serial.write("AT+RB", 5);
             if (readExpectedResponse("OK+B", false) && readExpectedResponse(HC12_BAUDRATE_STRING[baudRate], false))
             {
-                _debug.println(F("preferred baudrate already set"));
+                _debug.println(F("preferred baudrate already configured"));
             }
             else
             {
@@ -176,7 +204,6 @@ public:
         }
         else
         {
-            Serial.print("9 ");
             if (0 < _fallbackSerialTo)
             {
                 _debug.println(F(" -> command mode not available, setting local to fallback"));
@@ -189,20 +216,12 @@ public:
         delay(80);
     }
 
-    /**
-     * Sets the printer where to log debug information to. Default to `Serial`.
-     */
-    void setDebugPrinter(Print &debugStream)
-    {
-        _debug = debugStream;
-    }
-
 private:
     uint8_t _setPinNo;
     S &_hc12Serial;
+    Print &_debug;
     uint32_t _fallbackSerialTo;
     uint8_t _waitForAvailableWrite;
-    Print &_debug = Serial;
 
     /** send command and wait for specific response */
     boolean sendValidatedCommand(const char *command, const char *expectedResponse, const bool tolerateUnexpected)
@@ -222,7 +241,7 @@ private:
             }
         }
 
-        /*
+        /* does not work, try again later?
         const char *pgmStr = command;
         char c;
         while ('\0' != (c = pgm_read_byte(pgmStr++)))
@@ -242,39 +261,48 @@ private:
     {
         size_t responsePos = 0;
         uint8_t readCycles = 100; // maximum number of wait cycles to wait for incoming response
-        while ('\0' != expectedResponse[responsePos] && (readCycles > 0))
+        // algorithm already prepared for progmem usage
+        char expectedByte = expectedResponse[responsePos];
+        while ('\0' != expectedByte && (readCycles > 0))
         {
             if (!_hc12Serial.available())
             {
                 --readCycles;
                 delay(1);
             }
-            while (('\0' != expectedResponse[responsePos]) && _hc12Serial.available())
+            while (('\0' != expectedByte) && _hc12Serial.available())
             {
-                int x;
-                if ((x = _hc12Serial.read()) == expectedResponse[responsePos])
+                const int x = _hc12Serial.read();
+                if (x == expectedByte)
+                {
                     ++responsePos;
+                    expectedByte = expectedResponse[responsePos];
+                }
                 else
                 { // got something else
-                    HC12TOOL_DEBUG((char)x)
+                    _debug.write((char)x);
                     if (tolerateUnexpected)
+                    {
                         responsePos = 0;
+                        expectedByte = expectedResponse[responsePos];
+                    }
                     else
                         return false;
                 }
             }
         }
         // got the expected response?
-        return '\0' == expectedResponse[responsePos];
+        return '\0' == expectedByte;
     }
 
     void changeBaudRate(unsigned long baudRate)
     {
         _hc12Serial.flush(); // always write pending data in TX-FIFO
         _hc12Serial.SETBAUDRATE(baudRate);
-        Serial.print(F("\nset baudrate to "));
-        Serial.println(baudRate);
+        _debug.print(F("\nset baudrate to "));
+        _debug.println(baudRate);
     }
+
     void dumpPendingBytes()
     {
         if (_hc12Serial.available())
