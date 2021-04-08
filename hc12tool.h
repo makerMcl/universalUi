@@ -16,7 +16,7 @@
  * <li>if hc-12 command mode is not available, setting the baud rate on Serial to the default 9600 baud of the HC-12
  * <ul>
  * 
- * A call to setPreferredBaudrate() will produce a single line of output on serial. * 
+ * A call to setBaudrate() will produce a single line of output on serial. * 
  * If hc-12 command mode is available, the remote module will receive the text:
  * <pre>Configuring HC-12: baudrate set to &lt;n&gt;</pre>
  * If not available, the remote module will receive the text:
@@ -32,7 +32,7 @@
  * #include "universalUIglobal.h"
  * void setup() {
  *   Hc12Tool hc12Tool(5);
- *   hc12Tool.setPreferredBaudrate(BPS115200);
+ *   hc12Tool.setBaudrate(BPS115200);
  *   //...
  * }
  * </pre>
@@ -40,23 +40,17 @@
  * Per default, received unexpected bytes and activity info is logged to Serial. This can be configured by calling
  * <pre>hc12Tool.setVerbosity();</pre>
  * and affects subsequent actions.
+ * 
+ * 
+ * 
+ * Learnings not stated in the datasheet:
+ * <li>every response from module is terminated by "\r\n"
+ * <li>to get test command executed, it should be terminated by "\r\n", otherwise can't distinguish from other commands 
+ * <li>module does not like set-commands after query sent with SoftwareSerial.println(), then always answers with "ERROR"
  */
 #ifndef _HC12_DEBUG_TOOL_H
 #define _HC12_DEBUG_TOOL_H
 #include <Arduino.h>
-
-#ifdef VERBOSE_DEBUG_HC12TOOL
-#define HC12TOOL_DEBUG(X) Serial.print(X);
-#else
-#define HC12TOOL_DEBUG(X) ;
-#endif //of: ifdef DEBUG_HC12TOOL
-
-// define function to use for setting the baudrate
-#if defined(ESP32) || defined(ESP8266)
-#define SETBAUDRATE updateBaudRate
-#else
-#define SETBAUDRATE begin
-#endif
 
 // available baud rates of HC-12 module: 1200bps, 2400bps, 4800bps, 9600bps, 19200bps, 38400bps, 57600bps and 115200bps
 enum Hc12_BaudRate
@@ -64,7 +58,7 @@ enum Hc12_BaudRate
     BPS1200 = 0,
     BPS2400 = 1,
     BPS4800 = 2,
-    BPS9600 = 3,
+    BPS9600 = 3, // default value of HC-12 module
     BPS19200 = 4,
     BPS38400 = 5,
     BPS57600 = 6,
@@ -77,10 +71,10 @@ enum Hc12_TransmissionPower
     DBM2 = 2,      //  1.6 mW
     DBM5 = 3,      //  3.2 mW
     DBM8 = 4,      //  6.3 mW
-    DBM11 = 5,     // 12.6 mW
+    DBM11 = 5,     //  12 mW
     DBM14 = 6,     //  25 mW
-    DBM17 = 7,     //  70 mW
-    DBM20 = 8      // 100 mW
+    DBM17 = 7,     //  50 mW
+    DBM20 = 8      // 100 mW, default value of HC-12 module
 };
 
 enum Hc12_TransmissionMode
@@ -91,6 +85,19 @@ enum Hc12_TransmissionMode
     FU4 = 4  // ultra long distance: UART fixed at 1200 bps, air baud rate fixed at 500 bps
 };
 
+////// now internal macro and data structures
+#ifdef VERBOSE_DEBUG_HC12TOOL // debugging support
+#define HC12TOOL_DEBUG(X) Serial.print(X);
+#else
+#define HC12TOOL_DEBUG(X) ;
+#endif //of: ifdef DEBUG_HC12TOOL
+
+#if defined(ESP32) || defined(ESP8266) // define function to use for setting the baudrate
+#define SETBAUDRATE updateBaudRate
+#else
+#define SETBAUDRATE begin
+#endif
+
 struct Hc12toolVerbosity
 {
     bool showUnexpectedBytes : 1;
@@ -98,9 +105,8 @@ struct Hc12toolVerbosity
     bool baudRateSet : 1;
 };
 
-// ordering must adhere to order of enum
+// ordering must adhere to order of enum `Hc12_BaudRate`
 #define NUM_HC12_BAUDRATES 8
-const char *const HC12_BAUDRATE_STRING[NUM_HC12_BAUDRATES] /*PROGMEM*/ = {"1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200"};
 const unsigned long HC12_BAUDRATE_NUMERIC[NUM_HC12_BAUDRATES] = {1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200};
 
 // TODO convert to use it from progmem/flash; did not get it working yet
@@ -115,8 +121,8 @@ class Hc12Tool
 public:
     /**
      * Create instance of this class, configured with GPIO connected to set pin.
-     * This pin will be configured for output at `setPreferredBaudrate()`.
-     * If pin number is 0, calls to setPreferredBaudrate has no effect at all.
+     * This pin will be configured for output at `setBaudrate()`.
+     * If pin number is 0, calls to setBaudrate has no effect at all.
      * 
      * Optionally configure with fallback baudrate, to be set if command mode was not available. 
      * If fallback is set to value 0, no fallback is performed.
@@ -141,8 +147,8 @@ public:
     {
         if (enterCommandMode(baudRate))
         {
-            configureBaudrate(baudRate);
             configureTransmissionPower(power);
+            configureBaudrate(baudRate);
             exitCommandMode();
         }
     }
@@ -150,9 +156,9 @@ public:
     {
         if (enterCommandMode(baudRate))
         {
-            configureBaudrate(baudRate);
             configureChannel(channel);
             configureTransmissionPower(power);
+            configureBaudrate(baudRate);
             exitCommandMode();
         }
     }
@@ -160,10 +166,10 @@ public:
     {
         if (enterCommandMode(baudRate))
         {
-            configureBaudrate(baudRate);
             configureChannel(channel);
             configureTransmissionPower(power);
             configureTransmissionMode(mode);
+            configureBaudrate(baudRate); // must be the last command, as it adapts the baudrate of _hc12Serial
             exitCommandMode();
         }
     }
@@ -175,7 +181,7 @@ public:
      * 
      * Note that this affects also air baud rate of HC-12 module, see datasheet for more details.
      */
-    void setPreferredBaudrate(Hc12_BaudRate baudRate)
+    void setBaudrate(Hc12_BaudRate baudRate)
     {
         if (enterCommandMode(baudRate))
         {
@@ -211,12 +217,13 @@ public:
 
     /**
      * Configures log verbosity.
+     * Default setting after class initialization is: true, true, Serial.
      * 
-     * @param showUnexpectedBytes if true, incoming unexpected bytes are dumped to debugStream
      * @param showActivityInfo if true, messages for activity are printed to debugStream
+     * @param showUnexpectedBytes if true, incoming unexpected bytes are dumped to debugStream
      * @param debugStream where to print verbose log to. Defaults to Serial
      */
-    void setVerbosity(const bool showUnexpectedBytes, const bool showActivityInfo, Print &debugStream = Serial)
+    void setVerbosity(const bool showActivityInfo, const bool showUnexpectedBytes = false, Print &debugStream = Serial)
     {
         _verbosity.showUnexpectedBytes = showUnexpectedBytes;
         _verbosity.printActivityInfo = showActivityInfo;
@@ -225,6 +232,8 @@ public:
 
     /**
      * Queries configuration of module.
+     * 
+     * Requires configured baudrate, so best call it after <code>set...()</code>.
      *
      * Note: result is allocated on heap, you should free it of no longer used.
      * This is implemented intentionally to have it available after exiting this method.
@@ -271,16 +280,10 @@ public:
         const unsigned long startTime = millis();
         while (source.available() || (numMinByte && ((millis() - startTime) < maxWaitMillis)))
         {
-            // HC12TOOL_DEBUG("<")
-            // HC12TOOL_DEBUG(source.available());
-            // HC12TOOL_DEBUG(">")
             while (source.available())
             {
                 const int v = source.read();
                 target.write(v);
-                // HC12TOOL_DEBUG("<")
-                // HC12TOOL_DEBUG(v)
-                // HC12TOOL_DEBUG(">")
                 --numMinByte;
             }
         }
@@ -311,8 +314,12 @@ private:
                 return false;
             }
         }
-
-        /* does not work, try again later?
+        sendCommand(command);
+        return readExpectedResponse(expectedResponse, tolerateUnexpected, false);
+    }
+    void sendCommand(const char *command)
+    {
+        /* TODO: does not work, try again later?
         const char *pgmStr = command;
         char c;
         while ('\0' != (c = pgm_read_byte(pgmStr++)))
@@ -322,78 +329,16 @@ private:
         }
         */
         _hc12Serial.write(command, strlen(command));
-        delay(50);
-        return readExpectedResponse(expectedResponse, tolerateUnexpected, false);
-    }
-
-    /** wait for specific response, return true if found */
-    // note: each response from HC-12 is termined by "\r\n" (<13>,<10>)
-    boolean readExpectedResponse(const char *expectedResponse, const bool tolerateUnexpected, const bool acceptTerminators)
-    {
-        size_t responsePos = 0;
-        uint8_t readCycles = 100; // maximum number of wait cycles to wait for incoming response
-        // algorithm already prepared for progmem usage
-        char expectedByte = expectedResponse[responsePos];
-        while ('\0' != expectedByte && (readCycles > 0))
-        {
-            if (!_hc12Serial.available())
-            {
-                --readCycles;
-                delay(1);
-            }
-            while (('\0' != expectedByte) && _hc12Serial.available())
-            {
-                const int x = _hc12Serial.read();
-                if (x == expectedByte)
-                {
-                    ++responsePos;
-                    expectedByte = expectedResponse[responsePos];
-                }
-                else
-                { // got something else
-                    dumpVerboseChar((char)x);
-                    if (tolerateUnexpected)
-                    {
-                        responsePos = 0;
-                        expectedByte = expectedResponse[responsePos];
-                    }
-                    else
-                    {
-                        return false;
-                    }
-                }
-            }
-        }
-        // read+consume terminating newline
-        if (acceptTerminators && _hc12Serial.available())
-        {
-            int x = _hc12Serial.read();
-            if ('\r' == x && _hc12Serial.available())
-            {
-                x = _hc12Serial.read();
-                if ('\n' != x)
-                    dumpVerboseChar((char)x);
-            }
-            else
-            {
-                dumpVerboseChar((char)x);
-            }
-        }
-        // got the expected response?
-        return '\0' == expectedByte;
+        _hc12Serial.flush(); // wait till command has been fully sent
     }
 
     void changeBaudRate(unsigned long baudRate, const bool forceSet)
     {
-        if (forceSet || !_verbosity.baudRateSet)
-        {
-            _hc12Serial.flush(); // always write pending data in TX-FIFO
-            _hc12Serial.SETBAUDRATE(baudRate);
-            logActivity(F("\n  set baudrate to "));
+        _hc12Serial.flush(); // always write pending data in TX-FIFO
+        _hc12Serial.SETBAUDRATE(baudRate);
+        logActivity(F("  set serial-baudrate to "));
+        if (_verbosity.printActivityInfo)
             _debug.println(baudRate);
-        }
-        else
-            logActivity(F("\nignored baudrate set"));
     }
 
     void dumpVerboseChar(const char c)
@@ -420,6 +365,7 @@ private:
                 _hc12Serial.read();
         }
     }
+
     void logActivity(const __FlashStringHelper *msg)
     {
         if (_verbosity.printActivityInfo)
@@ -434,11 +380,10 @@ private:
             _debug.print(value);
         }
     }
-    void logActivity(const __FlashStringHelper *msg, const char *value)
+    void logActivity(const uint32_t &value)
     {
         if (_verbosity.printActivityInfo)
         {
-            _debug.print(msg);
             _debug.print(value);
         }
     }
@@ -452,7 +397,7 @@ private:
         logActivity(F("\nConfiguring HC-12: "));
         pinMode(_setPinNo, OUTPUT);
         digitalWrite(_setPinNo, LOW);
-        delay(40); // wait to enter command mode
+        delay(41); // wait to enter command mode
         // 1st attempt communication with HC-12 with pre-set baudrate
         if (_hc12Serial.isListening() && sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true))
         {
@@ -491,7 +436,8 @@ private:
                         if (sendValidatedCommand(COMMAND_AT, RESPONSE_AT, false))
                         {
                             _verbosity.baudRateSet = true;
-                            logActivity(F(" found hc12serial at "), HC12_BAUDRATE_STRING[i]);
+                            logActivity(F(" found hc12serial at "));
+                            logActivity(HC12_BAUDRATE_NUMERIC[i]);
                             logActivity(F(" baud, "));
                             return true;
                         }
@@ -511,101 +457,221 @@ private:
     void exitCommandMode()
     {
         digitalWrite(_setPinNo, HIGH);
-        // 80ms wait to enter UART mode, 200ms to avoid resetting default UART mode (9600, 8N1) with entering command mode again
-        delay(200);
+        // 80ms wait to enter UART mode; 200ms to avoid resetting default UART mode (9600, 8N1) with entering command mode again
+        delay(220);
+    }
+
+    void ignoreEndOfLine(bool consumeOtherChars)
+    {
+        int waitCycles = 30; // we need 4 cycles at least for AT+RP response
+        uint8_t state = 0;
+        HC12TOOL_DEBUG("\nIgnoring...")
+        while (waitCycles)
+        {
+            int x = -1;
+            HC12TOOL_DEBUG("i");
+            while (_hc12Serial.available())
+            {
+                x = _hc12Serial.read();
+                HC12TOOL_DEBUG(" c:")
+                HC12TOOL_DEBUG(x)
+                if ('\r' == x)
+                {
+                    state = 1;
+                    break;
+                }
+                else if ('\n' == x)
+                {
+                    state = (1 == state) ? 2 : 0;
+                    break;
+                }
+                else if (!consumeOtherChars)
+                    break;
+            }
+            if (2 == state)
+                break; // terminating with EOL found
+            HC12TOOL_DEBUG("|")
+            if (-1 != x)
+                dumpVerboseChar((char)x);
+            delay(1); // to decouple wait cycles from processing speed
+            --waitCycles;
+        }
+        HC12TOOL_DEBUG(" done.\n")
+    }
+
+    /** wait for specific response, return true if found */
+    // note: each response from HC-12 is termined by "\r\n" (<13>,<10>)
+    boolean readExpectedResponse(const char *expectedResponse, const bool tolerateUnexpected, const bool acceptTerminators)
+    {
+        size_t responsePos = 0;
+        uint8_t readCycles = 100; // maximum number of wait cycles to wait for incoming response
+
+        char expectedByte = expectedResponse[responsePos]; // preparation for algorithm with for progmem usage
+        while ('\0' != expectedByte && (readCycles > 0))
+        {
+            if (!_hc12Serial.available())
+            {
+                --readCycles;
+                delay(1);
+            }
+            while (('\0' != expectedByte) && _hc12Serial.available())
+            {
+                const int x = _hc12Serial.read();
+                if (x == expectedByte)
+                {
+                    ++responsePos;
+                    expectedByte = expectedResponse[responsePos];
+                    HC12TOOL_DEBUG('{')
+                    HC12TOOL_DEBUG((char)x)
+                    HC12TOOL_DEBUG('}')
+                }
+                else
+                { // got something else
+                    HC12TOOL_DEBUG('<')
+                    HC12TOOL_DEBUG(x)
+                    HC12TOOL_DEBUG('>')
+                    dumpVerboseChar((char)x);
+                    if (tolerateUnexpected)
+                    {
+                        responsePos = 0;
+                        expectedByte = expectedResponse[responsePos];
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+        // read+consume terminating newline
+        if (acceptTerminators)
+            ignoreEndOfLine(false);
+        // got the expected response?
+        return '\0' == expectedByte;
+    }
+
+    /** @return true if successful */
+    bool configure(const char *queryCommand, const char *expectedQueryResponse, char *expectedQueryValue,
+                   const char *setCommand, char *commandValue, const char *expectedSetResponse,
+                   const __FlashStringHelper *successMessage)
+    {
+        HC12TOOL_DEBUG(F("[query='"))
+        HC12TOOL_DEBUG(queryCommand)
+        HC12TOOL_DEBUG(F("', expecting='"))
+        HC12TOOL_DEBUG(expectedQueryResponse)
+        HC12TOOL_DEBUG(expectedQueryValue)
+        HC12TOOL_DEBUG(F("'] -> "))
+        sendCommand(queryCommand);
+        if (readExpectedResponse(expectedQueryResponse, false, false) && readExpectedResponse(expectedQueryValue, false, true))
+        {
+            logActivity(F("  "));
+            logActivity(successMessage);
+            logActivity(expectedQueryValue);
+            logActivity(F(" already set\n"));
+            return true;
+        }
+        else
+        {
+            ignoreEndOfLine(true); // ignore remaing response to query command
+            dumpPendingBytes();
+            // digitalWrite(_setPinNo, HIGH);
+            // delay(280); // wait 80ms to exit command mode
+            // digitalWrite(_setPinNo, LOW);
+            // delay(41); // wait to enter command mode
+            HC12TOOL_DEBUG(F("sending set-command: "))
+            sendCommand(setCommand);
+            bool result = false;
+            if (sendValidatedCommand(commandValue, expectedSetResponse, false))
+            {
+                if (readExpectedResponse(commandValue, false, true))
+                {
+                    logActivity(F("  successfully set "));
+                    logActivity(successMessage);
+                    logActivity(commandValue);
+                    result = true;
+                }
+                else
+                {
+                    logActivity(F("unexpected response to "));
+                    logActivity(setCommand);
+                    logActivity(commandValue);
+                }
+            }
+            else
+            {
+                logActivity(F("failed sending command "));
+                logActivity(setCommand);
+                logActivity(commandValue);
+            }
+            logActivity(F("\n"));
+            return result;
+        }
     }
 
     // "AT+RB" - query baudrate: response should be: "OK+B9600"
     void configureBaudrate(Hc12_BaudRate baudRate)
     {
-        // tolerate incoming, unexpected bytes, because there could be more on the line
-        _hc12Serial.println("AT+RB");
-        if (readExpectedResponse("OK+B", false, false) && readExpectedResponse(HC12_BAUDRATE_STRING[baudRate], false, true))
+        if (BPS1200 <= baudRate && baudRate <= BPS115200)
         {
-            logActivity(F("preferred baudrate already configured\n"));
-        }
-        else
-        {
-            // "AT+Bxxxx" - set baudrate: response should be "OK+B19200"
-            _hc12Serial.write("AT+B", 4);
-            if (sendValidatedCommand(HC12_BAUDRATE_STRING[baudRate], "OK+B", false))
+            char str[7]; // 6 chars for "115200" incl. \0-terminator
+            snprintf_P(str, 7, PSTR("%lu"), HC12_BAUDRATE_NUMERIC[baudRate]);
+            if (configure("AT+RB", "OK+B", str, "AT+B", str, "OK+B", F("baudrate ")))
             {
-                if (readExpectedResponse(HC12_BAUDRATE_STRING[baudRate], false, true))
-                {
-                    logActivity(F("baudrate set to "), HC12_BAUDRATE_STRING[baudRate]);
-                    changeBaudRate(HC12_BAUDRATE_NUMERIC[baudRate], true);
-                }
-                else
-                {
-                    if (0 < _fallbackSerialTo)
-                    {
-                        logActivity(F("unexpected response setting baudrate, setting local to fallback\n"));
-                        changeBaudRate(_fallbackSerialTo, true);
-                    }
-                    else
-                        logActivity(F("unexpected response setting baudrate\n"));
-                }
-            }
-        }
-    }
-
-    void configure(const char *command, uint8_t commandValue, const char *expectedResponse,
-                   const __FlashStringHelper *successMessage)
-    {
-        char str[4]; // 3 digits + \0-terminator
-        snprintf_P(str, 4, PSTR("%u"), commandValue);
-        _hc12Serial.print(command);
-        if (sendValidatedCommand(str, expectedResponse, false))
-        {
-            if (readExpectedResponse(str, false, true))
-            {
-                logActivity(successMessage, str);
+                changeBaudRate(HC12_BAUDRATE_NUMERIC[baudRate], true);
             }
             else
             {
-                logActivity(F("unexpected response to "), command);
-                logActivity(str);
+                if (0 < _fallbackSerialTo)
+                {
+                    logActivity(F("  setting baudrate to fallback\n"));
+                    changeBaudRate(_fallbackSerialTo, true);
+                }
             }
         }
         else
-        {
-            logActivity(F("failed sending command "), command);
-            logActivity(str);
-        }
-        logActivity(F("\n"));
+            logActivity(F("invalid baudrate"));
     }
+
     // AT+Cxxx / response should be: OK+C021
     void configureChannel(const uint8_t channel)
     {
         if (0 < channel && channel <= 127)
-            configure("AT+C", channel, "OK+C", F("  channel set to "));
+        {
+            char str[4]; // 3 digits with leading 0 + \0-terminator
+            snprintf_P(str, 4, PSTR("%03u"), channel);
+            configure("AT+RC", "OK+RC", str, "AT+C", str, "OK+C", F("channel "));
+        }
         else
-            logActivity(F("invalid channel "), channel);
+            logActivity(F("invalid channel"));
     }
     void configureTransmissionPower(Hc12_TransmissionPower power)
     {
         if (DBMminus1 <= power && power <= DBM20)
         {
-            configure("AT+P", power, "OK+P", F("  transmission power set to "));
+            // response is: OK+RP:+20 dBm
+            char str[4]; // 3 digits with leading 0 + \0-terminator
+            snprintf_P(str, 4, PSTR("%d"), power);
+            char str2[8];
+            snprintf_P(str2, 8, PSTR("%0+3ddBm"), (power - 1) * 3 - 1);
+            configure("AT+RP", "OK+RP:", str2, "AT+P", str, "OK+P", F("transmission power "));
         }
         else
         {
-            logActivity(F("invalid power "));
-            if (_verbosity.printActivityInfo)
-                _debug.print((char)48 + power);
+            logActivity(F("invalid power"));
         }
     }
     void configureTransmissionMode(Hc12_TransmissionMode mode)
     {
+        char str[2];                   // 3 digits with leading 0 + \0-terminator
+        str[0] = ((uint8_t)mode) + 48; // 48 is decimal for '0
+        str[1] = '\0';
         if (FU1 <= mode && mode <= FU4)
         {
-            configure("AT+FU", mode, "OK+FU", F("  transmission mode set to FU"));
+            configure("AT+RF", "OK+FU", str, "AT+FU", str, "OK+FU", F("transmission mode FU"));
         }
         else
         {
-            logActivity(F("invalid mode "));
-            if (_verbosity.printActivityInfo)
-                _debug.print((char)48 + mode);
+            logActivity(F("invalid mode"));
         }
     }
 };
