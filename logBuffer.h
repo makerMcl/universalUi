@@ -25,7 +25,6 @@ You should have received a copy of the GNU General Public License along with thi
 #define LOGBUFFER_DEBUGN(M, V) ;
 #endif
 
-
 /**
  * Collects all data into buf.
  * 
@@ -46,10 +45,9 @@ You should have received a copy of the GNU General Public License along with thi
 #define MUTEX_LOCK portENTER_CRITICAL(&logBuffer_mutex);
 #define MUTEX_UNLOCK portEXIT_CRITICAL(&logBuffer_mutex);
 static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
-#elif defined(ESP8266)
 #else
-#define MUTEX_LOCK ;
-#define MUTEX_UNLOCK ;
+#define MUTEX_LOCK noInterrupts(); // we must not implement waiting for a mutex here since in ISR wie can't wait!
+#define MUTEX_UNLOCK interrupts(); // we can only disable interrupts for the critical section of updating the buffer
 #endif
 
 class LogBuffer : public Print
@@ -191,7 +189,8 @@ public:
     const char *getLog(const byte part) const
     {
         const char *result;
-        MUTEX_LOCK;; // note: we are not in the arduino thread here
+        MUTEX_LOCK;
+        ; // note: we are not in the arduino thread here
         if (0 == part)
         {
             result = clipped ? &buf[appendIndex + 1] : &buf[0];
