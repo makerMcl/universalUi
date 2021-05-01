@@ -47,6 +47,8 @@
  * <li>every response from module is terminated by "\r\n"
  * <li>to get test command executed, it should be terminated by "\r\n", otherwise can't distinguish from other commands 
  * <li>module does not like set-commands after query sent with SoftwareSerial.println(), then always answers with "ERROR"
+ * <li>HC-12's Rx-pin has "weak pullup", connected to GPIO15 (for swapped UART0 at ESP8266) fails boot and requires pull-down!
+ * I measured 16k, that would imply: Uinput,low=0.8V at 3.3V -> internal pullUp is about 50kOhm
  */
 #ifndef _HC12_DEBUG_TOOL_H
 #define _HC12_DEBUG_TOOL_H
@@ -247,6 +249,7 @@ public:
         _hc12Serial.println("AT+RX");
         char buf[HC12_READCONFIGURATION_MAXBUFLEN + 1];
         size_t bufPos = 0;
+        buf[bufPos] = '\0'; // to terminte result string if we get no info from HC-12 at all
         const unsigned long startTime = millis();
         while ((_hc12Serial.available() || ((millis() - startTime) < 300)) && (bufPos < HC12_READCONFIGURATION_MAXBUFLEN))
         {
