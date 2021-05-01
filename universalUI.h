@@ -65,10 +65,13 @@ extern "C"
 #ifndef UNIVERSALUI_SERIAL_BAUDRATE
 #if defined(ESP32)
 #define UNIVERSALUI_SERIAL_BAUDRATE 115200 // baud rate of ESP32's boot loader
+#define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #elif defined(ESP8266)
 #define UNIVERSALUI_SERIAL_BAUDRATE 74800 // baud rate of ES8266's boot loader
+#define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #else
 #define UNIVERSALUI_SERIAL_BAUDRATE 57600 // baud rate of ATmega328p's boot loader
+#define _UNIVERSALUI_SDKVERSION F("Arduino")
 #endif
 #endif //of: #ifndef UNIVERSALUI_SERIAL_BAUDRATE
 
@@ -363,7 +366,7 @@ public:
         Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
         while (!Serial)
             ;
-        logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << ESP.getSdkVersion() << endl;
+        logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         //Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
         {
@@ -636,7 +639,8 @@ public:
     /**
      * 
      */
-    const size_t getHtmlLog(uint8_t *buf, size_t maxLen, size_t index, size_t& bufferRotationPoint) {
+    const size_t getHtmlLog(uint8_t *buf, size_t maxLen, size_t index, size_t &bufferRotationPoint)
+    {
         return _log.getLog(buf, maxLen, index, bufferRotationPoint);
     }
 

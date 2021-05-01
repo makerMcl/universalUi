@@ -14,7 +14,6 @@ You should have received a copy of the GNU General Public License along with thi
 #ifndef LOG_BUFFER_H
 #define LOG_BUFFER_H
 
-#include <AsyncWebSynchronization.h>
 #include "universalUIsettings.h"
 
 #ifdef VERBOSE_DEBUG_LOGBUFFER
@@ -24,7 +23,6 @@ You should have received a copy of the GNU General Public License along with thi
 #define LOGBUFFER_DEBUG(M, V) ;
 #define LOGBUFFER_DEBUGN(M, V) ;
 #endif
-
 
 /**
  * Collects all data into buf.
@@ -50,6 +48,7 @@ static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
 #else
 #define MUTEX_LOCK ;
 #define MUTEX_UNLOCK ;
+#define RESPONSE_TRY_AGAIN 0xFFFF // is defined by AsyncWebServer
 #endif
 
 class LogBuffer : public Print
@@ -191,7 +190,8 @@ public:
     const char *getLog(const byte part) const
     {
         const char *result;
-        MUTEX_LOCK;; // note: we are not in the arduino thread here
+        MUTEX_LOCK;
+        ; // note: we are not in the arduino thread here
         if (0 == part)
         {
             result = clipped ? &buf[appendIndex + 1] : &buf[0];
