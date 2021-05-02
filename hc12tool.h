@@ -89,16 +89,10 @@ enum Hc12_TransmissionMode
 
 ////// now internal macro and data structures
 #ifdef VERBOSE_DEBUG_HC12TOOL // debugging support
-#define HC12TOOL_DEBUG(X) Serial.print(X);
+#define HC12TOOL_DEBUG(X) _debug.print(X);
 #else
 #define HC12TOOL_DEBUG(X) ;
 #endif //of: ifdef DEBUG_HC12TOOL
-
-#if defined(ESP32) || defined(ESP8266) // define function to use for setting the baudrate
-#define SETBAUDRATE updateBaudRate
-#else
-#define SETBAUDRATE begin
-#endif
 
 struct Hc12toolVerbosity
 {
@@ -337,8 +331,8 @@ private:
 
     void changeBaudRate(unsigned long baudRate, const bool forceSet)
     {
-        _hc12Serial.flush(); // always write pending data in TX-FIFO
-        _hc12Serial.SETBAUDRATE(baudRate);
+        _hc12Serial.flush();         // always write pending data in TX-FIFO
+        _hc12Serial.begin(baudRate); // we always have to use begin(), since SoftwareSerial does not support updateBaudRate()
         logActivity(F("  set serial-baudrate to "));
         if (_verbosity.printActivityInfo)
             _debug.println(baudRate);
@@ -402,7 +396,7 @@ private:
         digitalWrite(_setPinNo, LOW);
         delay(41); // wait to enter command mode
         // 1st attempt communication with HC-12 with pre-set baudrate
-        if (_hc12Serial.isListening() && sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true))
+        if (sendValidatedCommand(COMMAND_AT, RESPONSE_AT, true)) // TODO what will happen with an unitialized UART?
         {
             _verbosity.baudRateSet = true;
             return true;
