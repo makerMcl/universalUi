@@ -52,24 +52,22 @@ static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
 
 class LogBuffer : public Print
 {
-#ifndef LOGBUF_LENGTH    // expected to be set in main sketch
-#define LOGBUF_LENGTH 16 // default size, for testing
-#endif
 private:
-    char clippedMarker[7] = {'[', '.', '.', '.', ']', ' ', '\0'};
-    char buf[LOGBUF_LENGTH + 1];
-    size_t appendIndex = 0; // where to append next logged character
-    bool clipped = false;
+    size_t _bufSize;
     bool _encodePercent;
+    char *_buffer;
+    size_t _appendIndex = 0; // where to append next logged character
+    bool _clipped = false;
+    char clippedMarker[7] = {'[', '.', '.', '.', ']', ' ', '\0'};
     void bufEnd()
     {
-        size_t p = appendIndex;
-        buf[incWithRollover(p)] = '\0';
-        if (clipped)
+        size_t p = _appendIndex;
+        _buffer[incWithRollover(p)] = '\0';
+        if (_clipped)
         {
             for (int i = 0; clippedMarker[i] != '\0'; ++i)
             {
-                buf[incWithRollover(p)] = clippedMarker[i];
+                _buffer[incWithRollover(p)] = clippedMarker[i];
             }
         }
     }
@@ -78,10 +76,10 @@ private:
     const word incWithRollover(size_t &idx)
     {
         const word x = idx;
-        if (++idx >= LOGBUF_LENGTH)
+        if (++idx >= _bufSize)
         {
             idx = 0;
-            clipped = true;
+            _clipped = true;
         }
         return x;
     }
@@ -97,7 +95,7 @@ private:
         const size_t copyLen = ((availableLogLen - startIndex) < maxTargetLen) ? (availableLogLen - startIndex) : maxTargetLen;
         LOGBUFFER_DEBUG("      logBuffer.copy: copyLen=", copyLen)
         LOGBUFFER_DEBUG(", startIndex=", startIndex)
-        LOGBUFFER_DEBUGN(", bufStartOfs=", (sourceBuf - &buf[0]))
+        LOGBUFFER_DEBUGN(", bufStartOfs=", (sourceBuf - &_buffer[0]))
 #ifdef VERBOSE_DEBUG
         if (0 == startIndex)
         {
@@ -130,10 +128,14 @@ public:
      * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
      * @param encodePercent true if '%' in content should be stored as "%%"
      */
-    LogBuffer(const bool encodePercent = false) : _encodePercent(encodePercent)
+    LogBuffer(const size_t capacity, const bool encodePercent = false) : _bufSize(capacity), _encodePercent(encodePercent), _buffer(new char[_bufSize + 1])
     {
-        buf[LOGBUF_LENGTH] = '\0';
-        buf[0] = '\0';
+        _buffer[_bufSize] = '\0';
+        _buffer[0] = '\0';
+    }
+    ~LogBuffer()
+    {
+        delete _buffer;
     }
 
     virtual size_t write(uint8_t c)
@@ -142,10 +144,10 @@ public:
         Serial.print((char)c);
 #endif
         MUTEX_LOCK;
-        buf[incWithRollover(appendIndex)] = c;
+        _buffer[incWithRollover(_appendIndex)] = c;
         if (_encodePercent && ('%' == c))
         {
-            buf[incWithRollover(appendIndex)] = c;
+            _buffer[incWithRollover(_appendIndex)] = c;
         }
         MUTEX_UNLOCK;
         return 1;
@@ -160,10 +162,10 @@ public:
         MUTEX_LOCK;
         while (msg[i] != '\0')
         {
-            buf[incWithRollover(appendIndex)] = msg[i];
+            _buffer[incWithRollover(_appendIndex)] = msg[i];
             if (_encodePercent && ('%' == msg[i]))
             {
-                buf[incWithRollover(appendIndex)] = msg[i];
+                _buffer[incWithRollover(_appendIndex)] = msg[i];
             }
             ++i;
         }
@@ -176,10 +178,10 @@ public:
     void clear()
     {
         MUTEX_LOCK;
-        clipped = false;
-        appendIndex = 0;
-        buf[LOGBUF_LENGTH] = '\0';
-        buf[0] = '\0';
+        _clipped = false;
+        _appendIndex = 0;
+        _buffer[_bufSize] = '\0';
+        _buffer[0] = '\0';
         MUTEX_UNLOCK;
     }
 
@@ -193,11 +195,11 @@ public:
         ; // note: we are not in the arduino thread here
         if (0 == part)
         {
-            result = clipped ? &buf[appendIndex + 1] : &buf[0];
+            result = _clipped ? &_buffer[_appendIndex + 1] : &_buffer[0];
         }
-        else if (1 == part && clipped)
+        else if (1 == part && _clipped)
         {
-            result = &buf[0];
+            result = &_buffer[0];
         }
         else
         {
@@ -223,26 +225,26 @@ public:
     {
         size_t result;
         MUTEX_LOCK; // note: we are not in the arduino thread here
-        if (0 == index || !clipped)
+        if (0 == index || !_clipped)
         {
-            bufferRollIndex = appendIndex;
+            bufferRollIndex = _appendIndex;
             LOGBUFFER_DEBUG("initialized bufferRollIndex=", bufferRollIndex)
-            LOGBUFFER_DEBUGN(" appendIndex=", appendIndex);
+            LOGBUFFER_DEBUGN(" appendIndex=", _appendIndex);
         }
-        if (clipped)
+        if (_clipped)
         {
-            if (index >= LOGBUF_LENGTH)
+            if (index >= _bufSize)
             {
                 // buffer completely read
                 result = 0;
             }
-            else if ((index + 1) < (LOGBUF_LENGTH - appendIndex))
+            else if ((index + 1) < (_bufSize - _appendIndex))
             {
                 // part 0: appendIndex+1 .. LOGBUF_LENGTH;  length = (LOGBUF_LENGTH-appendIndex-1)
                 LOGBUFFER_DEBUG("    part 0: maxLen=", maxLen)
                 LOGBUFFER_DEBUG(", index=", index)
                 LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex)
-                result = copyLog(targetBuf, maxLen, index, &buf[bufferRollIndex + 1], (LOGBUF_LENGTH - bufferRollIndex - 1));
+                result = copyLog(targetBuf, maxLen, index, &_buffer[bufferRollIndex + 1], (_bufSize - bufferRollIndex - 1));
             }
             else
             {
@@ -250,19 +252,19 @@ public:
                 LOGBUFFER_DEBUG(", index=", index)
                 LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex);
                 // part 1: 0 .. appendIndex-1;  length = appendIndex
-                result = copyLog(targetBuf, maxLen, index - (LOGBUF_LENGTH - bufferRollIndex - 1), &buf[0], bufferRollIndex);
+                result = copyLog(targetBuf, maxLen, index - (_bufSize - bufferRollIndex - 1), &_buffer[0], bufferRollIndex);
             }
         }
         else
         {
-            if (index < appendIndex)
+            if (index < _appendIndex)
             {
                 LOGBUFFER_DEBUG("    logBuffer: all maxLen=", maxLen)
                 LOGBUFFER_DEBUG(", index=", index)
                 LOGBUFFER_DEBUGN(", bufferRollIndex=", bufferRollIndex)
                 // result = ((appendIndex - index) < maxLen) ? (appendIndex - index) : maxLen;
                 // memcpy(targetBuf, &buf[index], result);
-                result = copyLog(targetBuf, maxLen, index, &buf[0], bufferRollIndex);
+                result = copyLog(targetBuf, maxLen, index, &_buffer[0], bufferRollIndex);
             }
             else
                 result = 0;

@@ -75,6 +75,11 @@ extern "C"
 #endif
 #endif //of: #ifndef UNIVERSALUI_SERIAL_BAUDRATE
 
+// define log buffer length from outside
+#ifndef LOGBUF_LENGTH    // expected to be set in main sketch
+#define LOGBUF_LENGTH 16 // default size, for testing
+#endif
+
 static const int TIME_UNIT_DIVIDER[] = {1000, 60, 60, 24, 0}; // last divider must be zero to indicate end of array
 static String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 
@@ -98,7 +103,7 @@ private:
     const char *_appname;
     BlinkLed *_statusLed;
     String _statusMessage = "";
-    LogBuffer _log = LogBuffer(true);
+    LogBuffer _log = LogBuffer(LOGBUF_LENGTH, true);
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
