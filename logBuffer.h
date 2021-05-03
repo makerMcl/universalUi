@@ -39,7 +39,7 @@ You should have received a copy of the GNU General Public License along with thi
  * <li><code>COPY_TO_SERIAL</code> - if defined, logged data will be mirrored via Serial.print</li>
  */
 
-// need this (at least onesp32) since arduino loop and webserver might run on different cores/threads
+// need this (at least on ESP32) since arduino loop and webserver might run on different cores/threads
 #if defined(ESP32)
 #define MUTEX_LOCK portENTER_CRITICAL(&logBuffer_mutex);
 #define MUTEX_UNLOCK portEXIT_CRITICAL(&logBuffer_mutex);
@@ -124,7 +124,20 @@ private:
     }
 
 public:
-    /** 
+    /**
+     * Constructor with externally supplied memory.
+     * If statically allocated memory is provided here, the linker will help you estimating managing available memory.
+     */
+    LogBuffer(const size_t capacity, char *buffer, const bool encodePercent = false) : _bufSize(capacity - 1), _encodePercent(encodePercent), _buffer(buffer)
+    {
+        _buffer[_bufSize] = '\0';
+        _buffer[0] = '\0';
+    }
+
+    /**
+     * Use this constructor at your own risk: it uses dynamically allocated memory.
+     * If not enough memory is available, ESP8266 will reboot with `rst cause:1, boot mode:(3,0)`.
+     *  
      * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
      * @param encodePercent true if '%' in content should be stored as "%%"
      */

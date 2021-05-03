@@ -83,7 +83,12 @@ extern "C"
 static const int TIME_UNIT_DIVIDER[] = {1000, 60, 60, 24, 0}; // last divider must be zero to indicate end of array
 static String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 
+char staticlogBufferMemory[LOGBUF_LENGTH];
+
 /**
+ * 
+ * Note: there should be only one (stack-based) instance of this class.
+ * 
  * Encapsules and supports status visualisation with several methods:<ul>
  * <li>status LED</li>
  * <li>serial interface (mainly for debugging)</li>
@@ -103,7 +108,7 @@ private:
     const char *_appname;
     BlinkLed *_statusLed;
     String _statusMessage = "";
-    LogBuffer _log = LogBuffer(LOGBUF_LENGTH, true);
+    LogBuffer _log = LogBuffer(LOGBUF_LENGTH, staticlogBufferMemory, true);
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
