@@ -47,6 +47,8 @@ static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
 #else
 #define MUTEX_LOCK noInterrupts(); // we must not implement waiting for a mutex here since in ISR wie can't wait!
 #define MUTEX_UNLOCK interrupts(); // we can only disable interrupts for the critical section of updating the buffer
+#endif
+#if !defined(ESP32) && !defined(ESP8266)
 #define RESPONSE_TRY_AGAIN 0xFFFF // is defined by AsyncWebServer
 #endif
 

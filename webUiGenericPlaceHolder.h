@@ -200,13 +200,14 @@ public:
                 LOGBUFFER_DEBUG("  webui: loaded buffer chunk ", bufferReadLen)
                 LOGBUFFER_DEBUG(", maxLen=", maxLen)
                 LOGBUFFER_DEBUGN(", targetMaxLen=", targetMaxLen)
-                #ifdef VERBOSE_DEBUG_LOGBUFFER
+#ifdef VERBOSE_DEBUG_LOGBUFFER
                 Serial.print("  webui: 3>");
-                for (int i=0; i<filledLen;++i) {
+                for (int i = 0; i < filledLen; ++i)
+                {
                     Serial.print((char)buf[i]);
                 }
                 Serial.println("<3");
-                #endif
+#endif
             } while (bufferReadLen > 0 && targetMaxLen > 0);
             if (0 == bufferReadLen)
             { // read complete log buffer, finished replacing pattern
