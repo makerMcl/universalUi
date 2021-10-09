@@ -202,7 +202,7 @@ public:
                 LOGBUFFER_DEBUGN(", targetMaxLen=", targetMaxLen)
 #ifdef VERBOSE_DEBUG_LOGBUFFER
                 Serial.print("  webui: 3>");
-                for (int i = 0; i < filledLen; ++i)
+                for (size_t i = 0; i < filledLen; ++i)
                 {
                     Serial.print((char)buf[i]);
                 }
