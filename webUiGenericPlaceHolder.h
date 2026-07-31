@@ -12,6 +12,36 @@ extern "C"
 #include "universalUIglobal.h"
 #include "debug.h"
 
+void serveFile(ESP8266WebServer &server, const __FlashStringHelper *path, const __FlashStringHelper *contentType, const __FlashStringHelper *cacheControl)
+{
+    String gzPath = String(reinterpret_cast<const char *>(path)) + ".gz";
+    if (LittleFS.exists(gzPath))
+    {
+        File file = LittleFS.open(gzPath, "r");
+        server.sendHeader(F("Content-Encoding"), F("gzip"));
+        server.sendHeader(F("Cache-Control"), F("public, max-age=86400"));
+        server.streamFile(file, contentType);
+        file.close();
+        return;
+    }
+    // 2. Fallback: Falls keine GZIP-Datei existiert, die normale Datei laden
+    else if (LittleFS.exists(reinterpret_cast<const char *>(path)))
+    {
+        File file = LittleFS.open(reinterpret_cast<const char *>(path), "r");
+        server.sendHeader(F("Cache-Control"), cacheControl);
+        // streamFile sendet die Datei blockweise und setzt den MIME-Type
+        server.streamFile(file, contentType);
+        file.close();
+        return;
+    }
+    server.send(404, F("text/plain"), F("File not found"));
+}
+void serveFile(ESP8266WebServer &server, const __FlashStringHelper *path, const __FlashStringHelper *contentType)
+{
+    serveFile(server, path, contentType, F("max-age=86400")); // cache for 1 hour
+}
+
+// TODO migrate this function for data-query methodology
 String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
 {
     if (0 == strcmp_P(var.c_str(), PSTR("APPNAME")))
@@ -25,7 +55,7 @@ String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
         if (ui.hasStatusMessage())
         {
             buf.reset();
-            //buf.printf_P(PSTR("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: %s</p>"), ui.getStatusMessage());
+            // buf.printf_P(PSTR("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: %s</p>"), ui.getStatusMessage());
             buf.append_P(F("<p style=\"color:blue;background-color:lightgrey;text-align:center;\">Status: "));
             buf.append(ui.getStatusMessage());
             buf.append_P(F("</p>"));
@@ -286,6 +316,6 @@ public:
             _content.close();
     }
 };
-#endif  // ESPASYNCWEBSERVER_INCLUDED
+#endif // ESPASYNCWEBSERVER_INCLUDED
 
 #endif
