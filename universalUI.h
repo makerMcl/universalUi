@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License along with thi
 #include <Streaming.h>
 #include <NTPClient.h>
 #include <Print.h>
+#include <GDBStub.h>
 #if defined(ESP32) // ESP32 board
 #include <WiFi.h>
 #include <ESPmDNS.h>
@@ -376,6 +377,7 @@ public:
         Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
         while (!Serial)
             ;
+        gdbstub_init();
         logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         // Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
