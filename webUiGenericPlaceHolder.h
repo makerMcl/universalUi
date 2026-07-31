@@ -121,13 +121,16 @@ private:
 public:
     RefreshState(const byte refreshTime = 1) : _refreshTime(refreshTime) {}
 
-    void evaluateRefreshParameters(AsyncWebServerRequest *request)
+    // Set refresh interval directly (for use in HTTP handlers)
+    void setRefreshInterval(int seconds)
     {
-        if (request->hasParam(PARAM_REFRESH))
-        {
-            const String r = request->getParam(PARAM_REFRESH)->value();
-            _webuiRefresh = r.toInt();
-        }
+        _webuiRefresh = (seconds > 0 && seconds < 256) ? seconds : 0;
+    }
+
+    // Get refresh interval
+    byte getRefreshInterval() const
+    {
+        return _webuiRefresh;
     }
 
     String getRefreshTag(AppendBuffer &buf, const String uri)
@@ -157,9 +160,8 @@ public:
     }
 };
 
-static const char phPattern[] = {'$', 'L', 'O', 'G', '$'};                   // pattern to replace with content from log buffer
-static const size_t phPatternLen = sizeof(phPattern) / sizeof(phPattern[0]); // length of pattern
-
+// Legacy class for ESPAsyncWebServer compatibility - not used with ESP8266WebServer
+#if defined(ESPASYNCWEBSERVER_INCLUDED) || defined(ASYNC_TCP_SSL_ENABLED)
 class FileWithLogBufferResponseDataSource : public AwsResponseDataSource
 {
 private:
@@ -284,5 +286,6 @@ public:
             _content.close();
     }
 };
+#endif  // ESPASYNCWEBSERVER_INCLUDED
 
 #endif

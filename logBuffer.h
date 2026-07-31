@@ -39,17 +39,28 @@ You should have received a copy of the GNU General Public License along with thi
  * <li><code>COPY_TO_SERIAL</code> - if defined, logged data will be mirrored via Serial.print</li>
  */
 
-// need this (at least on ESP32) since arduino loop and webserver might run on different cores/threads
+// Mutex protection for concurrent access to log buffer
+// ESP8266WebServer is now synchronous (no ISR-based HTTP handlers),
+// but logging from SoftwareSerial ISRs is still possible.
+// For ESP8266: Single-core, ISR + Main-Loop sequential → minimal risk, keep for safety
+// For ESP32: Multi-core → critical protection needed
 #if defined(ESP32)
 #define MUTEX_LOCK portENTER_CRITICAL(&logBuffer_mutex);
 #define MUTEX_UNLOCK portEXIT_CRITICAL(&logBuffer_mutex);
 static portMUX_TYPE logBuffer_mutex = portMUX_INITIALIZER_UNLOCKED;
+#elif defined(ESP8266)
+// ESP8266 is single-core with sequential ISR execution.
+// With synchronous HTTP server, ISR-to-HTTP conflicts eliminated.
+// Kept as safety measure for ISR-based logging (ui.logError in SoftwareSerial ISR)
+#define MUTEX_LOCK noInterrupts();
+#define MUTEX_UNLOCK interrupts();
 #else
-#define MUTEX_LOCK noInterrupts(); // we must not implement waiting for a mutex here since in ISR wie can't wait!
-#define MUTEX_UNLOCK interrupts(); // we can only disable interrupts for the critical section of updating the buffer
+// Generic fallback: no protection
+#define MUTEX_LOCK
+#define MUTEX_UNLOCK
 #endif
-#if !defined(ESP32) && !defined(ESP8266)
-#define RESPONSE_TRY_AGAIN 0xFFFF // is defined by AsyncWebServer
+#if !defined(RESPONSE_TRY_AGAIN)
+#define RESPONSE_TRY_AGAIN 0xFFFF // is defined by AsyncWebServer on async platforms; fallback for sync servers
 #endif
 
 class LogBuffer : public Print
