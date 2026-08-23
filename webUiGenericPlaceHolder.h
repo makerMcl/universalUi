@@ -12,33 +12,10 @@ extern "C"
 #include "universalUIglobal.h"
 #include "debug.h"
 
-void serveFile(ESP8266WebServer &server, const __FlashStringHelper *path, const __FlashStringHelper *contentType, const __FlashStringHelper *cacheControl)
+static void sendPgmGZipContent(ESP8266WebServer &server, const char *content_type, const uint8_t *content, size_t contentLength)
 {
-    String gzPath = String(reinterpret_cast<const char *>(path)) + ".gz";
-    if (LittleFS.exists(gzPath))
-    {
-        File file = LittleFS.open(gzPath, "r");
-        server.sendHeader(F("Content-Encoding"), F("gzip"));
-        server.sendHeader(F("Cache-Control"), F("public, max-age=86400"));
-        server.streamFile(file, contentType);
-        file.close();
-        return;
-    }
-    // 2. Fallback: Falls keine GZIP-Datei existiert, die normale Datei laden
-    else if (LittleFS.exists(reinterpret_cast<const char *>(path)))
-    {
-        File file = LittleFS.open(reinterpret_cast<const char *>(path), "r");
-        server.sendHeader(F("Cache-Control"), cacheControl);
-        // streamFile sendet die Datei blockweise und setzt den MIME-Type
-        server.streamFile(file, contentType);
-        file.close();
-        return;
-    }
-    server.send(404, F("text/plain"), F("File not found"));
-}
-void serveFile(ESP8266WebServer &server, const __FlashStringHelper *path, const __FlashStringHelper *contentType)
-{
-    serveFile(server, path, contentType, F("max-age=86400")); // cache for 1 hour
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, "text/html", (const char *)content, contentLength);
 }
 
 // TODO migrate this function for data-query methodology
