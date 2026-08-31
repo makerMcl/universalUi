@@ -39,6 +39,10 @@ extern "C"
 #include "blinkLed.h"
 #include "appendBuffer.h"
 
+#ifndef UNIVERSALUI_SERIAL_OUTPUT
+#define UNIVERSALUI_SERIAL_OUTPUT 0
+#endif
+
 // configuration section, to be modified via earlier #define's
 #ifndef NTP_UPDATE_INTERVAL
 #define NTP_UPDATE_INTERVAL 3600000 // every hour, in [ms]
@@ -68,7 +72,7 @@ extern "C"
 #define UNIVERSALUI_SERIAL_BAUDRATE 115200 // baud rate of ESP32's boot loader
 #define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #elif defined(ESP8266)
-#define UNIVERSALUI_SERIAL_BAUDRATE 74800 // baud rate of ES8266's boot loader
+#define UNIVERSALUI_SERIAL_BAUDRATE 74880 // baud rate of ES8266's boot loader
 #define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #else
 #define UNIVERSALUI_SERIAL_BAUDRATE 57600 // baud rate of ATmega328p's boot loader
@@ -117,6 +121,8 @@ private:
     unsigned long _lastWifiReconnectCheck = 0;
     const char *_userErrorMessage = nullptr;
     word _userErrorMessageBlinkTill = 0;
+    bool _otaInitialized = false;
+
     /**
      * Number of current, independent activities.
      * As long there is activity, status LED shall be on.
@@ -126,6 +132,11 @@ private:
     void initOTA()
     {
 #if defined(ESP32) || defined(ESP8266)
+        if (_otaInitialized)
+        {
+            return;
+            logError(F("duplicate OTA init"));
+        }
         ArduinoOTA
             .onStart([this]()
                      {
@@ -147,28 +158,27 @@ private:
 #endif
 #pragma GCC diagnostic pop
                 }
-                statusActive("OTA update");
+                // TODO
+                // statusActive(F("OTA update"));
                 _otaActive = true;
-                Serial.println("Start updating " + type); });
+                // OTA start logging intentionally disabled to avoid serial spam during reset/update.
+            });
         ArduinoOTA.onEnd([this]()
                          {
             _otaActive = false;
-            Serial.println(" End"); });
+            // OTA end logging intentionally disabled to avoid serial spam during reset/update.
+        });
         ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
                               {
             // OTA uploads in 1024 byte chunks
             const byte part = (progress * 100 / total);
-            if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
-            {
-                Serial.printf("%u%%\n", part);
-            }
-            else
-            {
-                Serial.print('.');
-            } });
+            (void)part;
+            (void)progress;
+            (void)total;
+            // Intentionally disabled: progress spam is noisy and not required for normal operation.
+        });
         ArduinoOTA.onError([this](ota_error_t error)
                            {
-            Serial.printf("OTA Error[%u]: ", error);
             char reason[30];
             if (error == OTA_AUTH_ERROR)
                 strcpy(reason, "OTA error: Auth Failed");
@@ -182,13 +192,14 @@ private:
                 strcpy(reason, "OTA error: End Failed");
             else
                 strcpy(reason, "OTA error: unknown");
-            Serial.println(reason);
             statusErrorOta(reason);
             _otaActive = false; });
         ArduinoOTA.setHostname(_appname);
         ArduinoOTA.setPort(OTA_PORT);
         ArduinoOTA.setPasswordHash(OTA_AUTH_MD5);
-        ArduinoOTA.begin();
+        // TODO do delayed in loop()
+        ArduinoOTA.begin(); // implcitly initializes MDNS with _appname
+        _otaInitialized = true;
 #endif
     }
 
@@ -200,58 +211,62 @@ private:
         WiFi.mode(WIFI_OFF);
         WiFi.mode(WIFI_STA);
         // WiFi.config(ip, gateway, subnet); // Only for fix IP needed
+        WiFi.hostname(_appname);
         WiFi.begin(ssid, wpsk);
         int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
         while (WiFi.status() != WL_CONNECTED && triesLeft > 0)
         {
-            Serial.print(".");
             --triesLeft;
             delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
         }
+#if UNIVERSALUI_SERIAL_OUTPUT
         if (WiFi.status() == WL_CONNECTED)
         {
-            Serial << "\nConnected with IP=" << WiFi.localIP() << endl;
+            Serial << F("\nConnected with IP=") << WiFi.localIP() << endl;
         }
         else
         {
-            Serial << "\nConnect failed, status=" << WiFi.status() << " (";
+            Serial << F("\nConnect failed, status=") << WiFi.status() << " (";
             switch (WiFi.status())
             {
             case WL_IDLE_STATUS:
-                Serial << "IDLE";
+                Serial << F("IDLE");
                 break;
             case WL_NO_SSID_AVAIL:
-                Serial << "NO_SSID_AVAIL";
+                Serial << F("NO_SSID_AVAIL");
                 break;
             case WL_SCAN_COMPLETED:
-                Serial << "SCAN_COMPLETED";
+                Serial << F("SCAN_COMPLETED");
                 break;
             case WL_CONNECT_FAILED:
-                Serial << "CONNECT_FAILED";
+                Serial << F("CONNECT_FAILED");
                 break;
             case WL_CONNECTION_LOST:
-                Serial << "CONNECTION_LOST";
+                Serial << F("CONNECTION_LOST");
                 break;
             case WL_DISCONNECTED:
-                Serial << "DISCONNECTED";
+                Serial << F("DISCONNECTED");
                 break;
             default:
-                Serial << "unknown";
+                Serial << F("unknown");
             };
-            Serial << ")" << endl;
+            Serial << F(")") << endl;
 #ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
             Serial << "restarting..." << endl;
             delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
             ESP.restart();
 #endif
         }
+#endif
         _lastWifiReconnectCheck = millis();
 #endif
     }
 
     void statusErrorOta(const char *errorText)
     {
-        Serial << "setting status to (ota) error: " << errorText << endl;
+#if UNIVERSALUI_SERIAL_OUTPUT
+        Serial << F("setting status to (ota) error: ") << errorText << endl;
+#endif
         if (nullptr != _statusLed)
             _statusLed->setBlinkPattern4(OTA_ERROR_BLINK);
         _statusMessage = errorText;
@@ -261,7 +276,11 @@ private:
     {
         if (NULL != _timeClient && _ntpTimeValid)
         {
-            _log << _timeClient->getFormattedTime();
+            const unsigned long rawTime = _timeClient->getEpochTime();
+            _log << _WIDTHZ((rawTime % 86400L) / 3600, 2)       // hours
+                 << F(":") << _WIDTHZ((rawTime % 3600) / 60, 2) // minutes
+                 << F(":") << _WIDTHZ(rawTime % 60, 2)          // seconds
+                 << F(".") << (rawTime % 1000);                 // milliseconds
         }
         else
         {
@@ -374,67 +393,63 @@ public:
      */
     void init(const int statusLedPin, const bool statusLedActiveOnLow, const __FlashStringHelper *mainFileName, const __FlashStringHelper *buildTimestamp)
     {
+        // ESP8266 UART0 is shared with the boot log and WiFi startup. Do not block on
+        // Serial availability and do not initialize the debug stub here, because that
+        // creates repeated boot-time log collisions and freezes on the default serial output.
+#if UNIVERSALUI_SERIAL_OUTPUT
         Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
-        while (!Serial)
-            ;
-        gdbstub_init();
+        delay(500);
         logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         // Serial <<"compiler version: "<< __VERSION__<<endl;
+
         if (NOT_A_PIN != statusLedPin)
         {
             Serial << "setting status pin to " << statusLedPin << endl;
             _statusLed = new BlinkLed();
             _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
         }
+#else
+        if (NOT_A_PIN != statusLedPin)
+        {
+            _statusLed = new BlinkLed();
+            _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
+        }
+#endif
         else
         {
             _statusLed = nullptr;
         }
 
+        // Serial << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
+        // Serial <<"compiler version: "<< __VERSION__<<endl;
+
+        // gdbstub_init();
 #if defined(ESP32) || defined(ESP8266)
-        Serial << endl
-               << "MAC address is " << WiFi.macAddress() << endl;
+        // Serial << endl
+        //    << F("MAC address is ") << WiFi.macAddress() << endl;
 
 #if defined(ESP32)
         WiFi.setHostname(_appname);
 #elif defined(ESP8266)
         WiFi.hostname(_appname);
 #endif
-#if defined(ESP32) || defined(ESP8266)
-        reconnectWifi();
-#endif
-        MDNS.begin(_appname); // suffix ".local" is automatically added
+        // Do not call reconnectWifi() here. The WiFi connect cycle belongs to the normal
+        // runtime loop, after Serial is stable and without starting the radio in the same
+        // initialization phase as the UI. This avoids double-init / boot-time collisions.
+        // MDNS is started only after a successful connection, not during early startup.
 
+        // allow next WiFi reconnect at next loop() iteration
+        _lastWifiReconnectCheck = millis() - UNIVERSALUI_WIFI_RECONNECT_PERIOD;
         initOTA();
         if (NULL != _timeClient)
         {
+            _lastNtpUpdateMs = millis() - NTP_RETRY_INTERVAL;
             _timeClient->begin();
-            int ntpTries = NTP_INITIAL_TRIES;
-            do
-            {
-                _ntpTimeValid = _timeClient->forceUpdate();
-                if (_ntpTimeValid)
-                {
-                    _lastNtpUpdateMs = millis();
-                    logInfo() << "initialized NTP client at millis()=" << _lastNtpUpdateMs << ", time is " << _timeClient->getFormattedTime() << endl;
-                    ntpTries = 0;
-                    break;
-                }
-                --ntpTries;
-                logError() << "failed getting NTP time (" << ntpTries << ")" << endl;
-                delay(500);
-            } while (ntpTries > 0);
         }
 #endif
-        Serial << "\nReady\n\n";
-    }
-
-    /**
-     * Example: addMdnsSevice("http", "tcp", 80);
-     */
-    bool addMdnsService(const String &service, const String &protocol, uint16_t port)
-    {
-        return MDNS.addService(service, protocol, port);
+#if UNIVERSALUI_SERIAL_OUTPUT
+        Serial << F("\nReady\n\n");
+#endif
     }
 
     /**
@@ -487,21 +502,27 @@ public:
 
     void statusActive(const char *message)
     {
-        Serial << "setting status to active: " << message << endl;
+#if UNIVERSALUI_SERIAL_OUTPUT
+        Serial << F("setting status to active: ") << message << endl;
+#endif
         statusLedOn();
         _statusMessage = message;
     }
 
     void statusError(const char *message)
     {
-        Serial << "setting status to error: " << message << endl;
+#if UNIVERSALUI_SERIAL_OUTPUT
+        Serial << F("setting status to error: ") << message << endl;
+#endif
         setBlink(125, 125);
         _statusMessage = message;
     }
 
     void statusOk()
     {
-        Serial << "setting status to ok" << endl;
+#if UNIVERSALUI_SERIAL_OUTPUT
+        Serial << F("setting status to ok") << endl;
+#endif
         statusLedOff();
         _statusMessage = "";
     }
@@ -561,7 +582,6 @@ public:
 #if defined(ESP32) || defined(ESP8266)
         if ((WiFi.status() != WL_CONNECTED) && (millis() - _lastWifiReconnectCheck) > UNIVERSALUI_WIFI_RECONNECT_PERIOD)
         {
-            logWarn() << "No connection, performing Wifi reset\n";
             reconnectWifi();
         }
 
@@ -579,20 +599,32 @@ public:
             else
                 statusLedOn();
         }
+#if defined(ESP32) || defined(ESP8266)
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            if (MDNS.isRunning())
+            {
+                MDNS.update();
+            }
+        }
         // update cycle for NTP queries
         if (NULL != _timeClient && ((long)(millis() - _lastNtpUpdateMs) >= (_ntpTimeValid ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL)))
         {
             _ntpTimeValid = _timeClient->forceUpdate();
             if (_ntpTimeValid)
-                logInfo("time updated successfully from NTP");
+                logInfo() << F("updated time from  NTP after ") << (millis() - _lastNtpUpdateMs) << F("ms, UTC-time is ") << _timeClient->getFormattedTime() << endl;
             else
-                logError("time update failed from NTP");
+                logError(F("time update failed from NTP"));
             _lastNtpUpdateMs = millis();
         }
-#if defined(ESP8266)
-        MDNS.update();
 #endif
+
         return true;
+    }
+
+    Print &getLogger()
+    {
+        return _log;
     }
 
     Print &logError()

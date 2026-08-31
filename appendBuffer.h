@@ -128,7 +128,7 @@ public:
      * Create an instance with externally supplied memory for buffer.
      * This allows to use statically allocated memory to be recognized at linking time.
      */
-    AppendBuffer(const size_t size, char *buf) : _maxsize(size), _buf(buf)
+    AppendBuffer(const size_t size, char *buf) : _maxsize(size), _buf(buf), _ownsBuffer(false)
     {
         _appendPos = _buf;
     }
@@ -136,18 +136,22 @@ public:
     /**
      * Use this constructor at your own risk: the linker won't provide an error if not enough memory available!
      */
-    AppendBuffer(size_t size) : _maxsize(size), _buf(new char[_maxsize])
+    AppendBuffer(size_t size) : _maxsize(size), _buf(new char[_maxsize]), _ownsBuffer(true)
     {
         _appendPos = _buf;
     }
     ~AppendBuffer()
     {
-        delete _buf;
+        if (_ownsBuffer)
+        {
+            delete[] _buf;
+        }
     }
 
 private:
     size_t _maxsize; // number of characters, including the trailing '\0'
     char *_buf;
+    bool _ownsBuffer;
     char *_appendPos; // position in buffer where next character to place at
 
     /** 

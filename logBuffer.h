@@ -68,6 +68,7 @@ class LogBuffer : public Print
 private:
     size_t _bufSize;
     bool _encodePercent;
+    bool _ownsBuffer;
     char *_buffer;
     size_t _appendIndex = 0; // where to append next logged character
     bool _clipped = false;
@@ -141,7 +142,7 @@ public:
      * Constructor with externally supplied memory.
      * If statically allocated memory is provided here, the linker will help you estimating managing available memory.
      */
-    LogBuffer(const size_t capacity, char *buffer, const bool encodePercent = false) : _bufSize(capacity - 1), _encodePercent(encodePercent), _buffer(buffer)
+    LogBuffer(const size_t capacity, char *buffer, const bool encodePercent = false) : _bufSize(capacity - 1), _encodePercent(encodePercent), _ownsBuffer(false), _buffer(buffer)
     {
         _buffer[_bufSize] = '\0';
         _buffer[0] = '\0';
@@ -154,14 +155,17 @@ public:
      * Note: supports fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
      * @param encodePercent true if '%' in content should be stored as "%%"
      */
-    LogBuffer(const size_t capacity, const bool encodePercent = false) : _bufSize(capacity), _encodePercent(encodePercent), _buffer(new char[_bufSize + 1])
+    LogBuffer(const size_t capacity, const bool encodePercent = false) : _bufSize(capacity), _encodePercent(encodePercent), _ownsBuffer(true), _buffer(new char[_bufSize + 1])
     {
         _buffer[_bufSize] = '\0';
         _buffer[0] = '\0';
     }
     ~LogBuffer()
     {
-        delete _buffer;
+        if (_ownsBuffer)
+        {
+            delete[] _buffer;
+        }
     }
 
     virtual size_t write(uint8_t c)
@@ -175,6 +179,7 @@ public:
         {
             _buffer[incWithRollover(_appendIndex)] = c;
         }
+        bufEnd();
         MUTEX_UNLOCK;
         return 1;
     }
@@ -184,6 +189,10 @@ public:
 #ifdef COPY_TO_SERIAL
         Serial.print(msg);
 #endif
+        if (nullptr == msg)
+        {
+            return 0;
+        }
         word i = 0;
         MUTEX_LOCK;
         while (msg[i] != '\0')
