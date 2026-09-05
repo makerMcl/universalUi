@@ -209,7 +209,9 @@ private:
         }
         if (WiFi.status() == WL_CONNECTED)
         {
-            Serial << "\nConnected with IP=" << WiFi.localIP() << endl;
+            MUTEX_LOCK
+            Serial << F("\nConnected with IP=") << WiFi.localIP() << endl;
+            MUTEX_UNLOCK
         }
         else
         {
@@ -380,7 +382,9 @@ public:
         //Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
         {
-            Serial << "setting status pin to " << statusLedPin << endl;
+            MUTEX_LOCK
+            Serial << F("setting status pin to ") << statusLedPin << endl;
+            MUTEX_UNLOCK
             _statusLed = new BlinkLed();
             _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
         }
@@ -423,7 +427,9 @@ public:
             } while (ntpTries > 0);
         }
 #endif
+        MUTEX_LOCK
         Serial << "\nReady\n\n";
+        MUTEX_UNLOCK
     }
 
     /**
