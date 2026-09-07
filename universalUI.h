@@ -37,6 +37,7 @@ extern "C"
 #include "logBuffer.h"
 #include "blinkLed.h"
 #include "appendBuffer.h"
+#include "Logger.h"
 
 // configuration section, to be modified via earlier #define's
 #ifndef NTP_UPDATE_INTERVAL
@@ -95,7 +96,7 @@ char staticlogBufferMemory[LOGBUF_LENGTH];
  * <li>via web page</li>
  * </ul>
  */
-class UniversalUI
+class UniversalUI : public Logger
 {
 private:
     // member constants
@@ -328,6 +329,11 @@ public:
     const char *getAppName() const
     {
         return _appname;
+    }
+
+    Logger &getLogger()
+    {
+        return *this;
     }
 
     void setNtpClient(NTPClient *timeClient)
