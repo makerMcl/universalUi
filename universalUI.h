@@ -68,7 +68,7 @@ extern "C"
 #define UNIVERSALUI_SERIAL_BAUDRATE 115200 // baud rate of ESP32's boot loader
 #define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #elif defined(ESP8266)
-#define UNIVERSALUI_SERIAL_BAUDRATE 74800 // baud rate of ES8266's boot loader
+#define UNIVERSALUI_SERIAL_BAUDRATE 74880 // baud rate of ES8266's boot loader
 #define _UNIVERSALUI_SDKVERSION ESP.getSdkVersion()
 #else
 #define UNIVERSALUI_SERIAL_BAUDRATE 57600 // baud rate of ATmega328p's boot loader
