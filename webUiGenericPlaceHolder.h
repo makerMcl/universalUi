@@ -12,6 +12,13 @@ extern "C"
 #include "universalUIglobal.h"
 #include "debug.h"
 
+static void sendPgmGZipContent(ESP8266WebServer &server, const char *content_type, const uint8_t *content, size_t contentLength)
+{
+    server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, content_type, (const char *)content, contentLength);
+}
+
+// TODO migrate this function for data-query methodology
 String universalUiPlaceholderProcessor(const String &var, AppendBuffer &buf)
 {
     if (0 == strcmp_P(var.c_str(), PSTR("APPNAME")))
