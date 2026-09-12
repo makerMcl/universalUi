@@ -59,8 +59,8 @@ extern "C"
 #endif
 
 // optional configuration settings, to be defined before including this file
-//#define UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
-//#define COPY_TO_SERIAL                    // if logged messages should be immediately printed on Serial
+// #define UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
+// #define COPY_TO_SERIAL                    // if logged messages should be immediately printed on Serial
 
 // following settings are per default adapted to default behaviour of the board
 #ifndef UNIVERSALUI_SERIAL_BAUDRATE
@@ -74,7 +74,7 @@ extern "C"
 #define UNIVERSALUI_SERIAL_BAUDRATE 57600 // baud rate of ATmega328p's boot loader
 #define _UNIVERSALUI_SDKVERSION F("Arduino")
 #endif
-#endif //of: #ifndef UNIVERSALUI_SERIAL_BAUDRATE
+#endif // of: #ifndef UNIVERSALUI_SERIAL_BAUDRATE
 
 // define log buffer length from outside
 #ifndef LOGBUF_LENGTH    // expected to be set in main sketch
@@ -87,9 +87,9 @@ static String TIME_UNIT_LABEL[] = {"ms", "sek", "min", "h", "d"};
 char staticlogBufferMemory[LOGBUF_LENGTH];
 
 /**
- * 
+ *
  * Note: there should be only one (stack-based) instance of this class.
- * 
+ *
  * Encapsules and supports status visualisation with several methods:<ul>
  * <li>status LED</li>
  * <li>serial interface (mainly for debugging)</li>
@@ -127,7 +127,8 @@ private:
     {
 #if defined(ESP32) || defined(ESP8266)
         ArduinoOTA
-            .onStart([this]() {
+            .onStart([this]()
+                     {
                 String type;
                 if (ArduinoOTA.getCommand() == U_FLASH)
                     type = "sketch";
@@ -148,13 +149,13 @@ private:
                 }
                 statusActive("OTA update");
                 _otaActive = true;
-                Serial.println("Start updating " + type);
-            });
-        ArduinoOTA.onEnd([this]() {
+                Serial.println("Start updating " + type); });
+        ArduinoOTA.onEnd([this]()
+                         {
             _otaActive = false;
-            Serial.println(" End");
-        });
-        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+            Serial.println(" End"); });
+        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+                              {
             // OTA uploads in 1024 byte chunks
             const byte part = (progress * 100 / total);
             if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
@@ -164,9 +165,9 @@ private:
             else
             {
                 Serial.print('.');
-            }
-        });
-        ArduinoOTA.onError([this](ota_error_t error) {
+            } });
+        ArduinoOTA.onError([this](ota_error_t error)
+                           {
             Serial.printf("OTA Error[%u]: ", error);
             char reason[30];
             if (error == OTA_AUTH_ERROR)
@@ -183,8 +184,7 @@ private:
                 strcpy(reason, "OTA error: unknown");
             Serial.println(reason);
             statusErrorOta(reason);
-            _otaActive = false;
-        });
+            _otaActive = false; });
         ArduinoOTA.setHostname(_appname);
         ArduinoOTA.setPort(OTA_PORT);
         ArduinoOTA.setPasswordHash(OTA_AUTH_MD5);
@@ -264,6 +264,13 @@ private:
         if (NULL != _timeClient && _ntpTimeValid)
         {
             _log << _timeClient->getFormattedTime();
+
+            const unsigned long rawTime = _timeClient->getEpochTime();
+            const unsigned long millisElapsed = (millis() - _lastNtpUpdateMs); // calculate immediately, to minimize deviation
+            _log << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");           // hh
+            _log << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");               // mm
+            _log << _WIDTHZ(rawTime % 60, 2) << F(".");                        // ss
+            _log << _WIDTHZ(millisElapsed % 1000, 3);                          // millis
         }
         else
         {
@@ -351,7 +358,7 @@ public:
         return (isNtpTimeValid()) ? _timeClient->getFormattedTime() : "";
     }
 
-    /** 
+    /**
      * To be called on <code>setUp();</code>.
      * @param mainFileName to be provided with macro <code>__FILE__</code>
      * @param buildTimestamp to be provided with macro <code>__TIMESTAMP__</code>
@@ -385,7 +392,7 @@ public:
         while (!Serial)
             ;
         logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
-        //Serial <<"compiler version: "<< __VERSION__<<endl;
+        // Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
         {
             MUTEX_LOCK
@@ -552,7 +559,7 @@ public:
      * <li>updates state of blink pin</li>
      * <li>checks OTA</li>
      * </ul>
-     * 
+     *
      * @return true if no internal activity and more workload can be processed
      */
     bool handle()
@@ -651,7 +658,7 @@ public:
         logDebug() << msg << endl;
     }
 
-    /** 
+    /**
      * Note: LogBuffer implements fix for https://github.com/me-no-dev/ESPAsyncWebServer/issues/333: '%' in template result is evaluated as template again
      */
     const char *getHtmlLog(const byte part)
@@ -659,7 +666,7 @@ public:
         return _log.getLog(part);
     }
     /**
-     * 
+     *
      */
     const size_t getHtmlLog(uint8_t *buf, size_t maxLen, size_t index, size_t &bufferRotationPoint)
     {
