@@ -122,6 +122,9 @@ private:
      * As long there is activity, status LED shall be on.
      */
     byte _activityCount = 0;
+    // true if the sketch has moved UART0/Serial away from its primary (USB) pins via its own
+    // Serial.swap() call, e.g. to use it for a different bus. See setUart0RepurposedElsewhere().
+    bool _uart0RepurposedElsewhere = false;
 
     void initOTA()
     {
@@ -149,26 +152,26 @@ private:
                 }
                 statusActive("OTA update");
                 _otaActive = true;
-                Serial.println("Start updating " + type); });
+                // Update always ends in a restart, so it's fine to leave UART0 on the USB pins here.
+                if (_uart0RepurposedElsewhere)
+                    Serial.swap();
+                Serial.print(F("Start updating "));
+                Serial.println(type); });
         ArduinoOTA.onEnd([this]()
                          {
             _otaActive = false;
-            Serial.println(" End"); });
-        ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
+            Serial.println(F("OTA End")); });
+        ArduinoOTA.onProgress([this](unsigned int progress, unsigned int total)
                               {
             // OTA uploads in 1024 byte chunks
             const byte part = (progress * 100 / total);
             if ((part % 10 == 0) && (part > ((progress - 1024) * 100 / total)))
             {
-                Serial.printf("%u%%\n", part);
-            }
-            else
-            {
-                Serial.print('.');
+                Serial.print(part);
+                Serial.println(F("%"));
             } });
         ArduinoOTA.onError([this](ota_error_t error)
                            {
-            Serial.printf("OTA Error[%u]: ", error);
             char reason[30];
             if (error == OTA_AUTH_ERROR)
                 strcpy(reason, "OTA error: Auth Failed");
@@ -182,6 +185,9 @@ private:
                 strcpy(reason, "OTA error: End Failed");
             else
                 strcpy(reason, "OTA error: unknown");
+            Serial.print(F("OTA Error["));
+            Serial.print(error);
+            Serial.print(F("]: "));
             Serial.println(reason);
             statusErrorOta(reason);
             _otaActive = false; });
@@ -195,6 +201,8 @@ private:
     void reconnectWifi()
     {
 #if defined(ESP32) || defined(ESP8266)
+        if (_uart0RepurposedElsewhere)
+            Serial.swap(); // temporarily bring UART0 back to its USB pins for these diagnostics
         WiFi.persistent(false);
         WiFi.disconnect();
         WiFi.mode(WIFI_OFF);
@@ -204,56 +212,59 @@ private:
         int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
         while (WiFi.status() != WL_CONNECTED && triesLeft > 0)
         {
-            Serial.print(".");
             --triesLeft;
             delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
         }
         if (WiFi.status() == WL_CONNECTED)
         {
-            MUTEX_LOCK
-            Serial << F("\nConnected with IP=") << WiFi.localIP() << endl;
-            MUTEX_UNLOCK
+            Serial.print(F("Connected with IP="));
+            Serial.println(WiFi.localIP());
         }
         else
         {
-            Serial << "\nConnect failed, status=" << WiFi.status() << " (";
+            Serial.print(F("Connect failed, status="));
+            Serial.print(WiFi.status());
+            Serial.print(F(" ("));
             switch (WiFi.status())
             {
             case WL_IDLE_STATUS:
-                Serial << "IDLE";
+                Serial.print(F("IDLE"));
                 break;
             case WL_NO_SSID_AVAIL:
-                Serial << "NO_SSID_AVAIL";
+                Serial.print(F("NO_SSID_AVAIL"));
                 break;
             case WL_SCAN_COMPLETED:
-                Serial << "SCAN_COMPLETED";
+                Serial.print(F("SCAN_COMPLETED"));
                 break;
             case WL_CONNECT_FAILED:
-                Serial << "CONNECT_FAILED";
+                Serial.print(F("CONNECT_FAILED"));
                 break;
             case WL_CONNECTION_LOST:
-                Serial << "CONNECTION_LOST";
+                Serial.print(F("CONNECTION_LOST"));
                 break;
             case WL_DISCONNECTED:
-                Serial << "DISCONNECTED";
+                Serial.print(F("DISCONNECTED"));
                 break;
             default:
-                Serial << "unknown";
+                Serial.print(F("unknown"));
             };
-            Serial << ")" << endl;
+            Serial.println(F(")"));
 #ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
-            Serial << "restarting..." << endl;
+            Serial.println(F("restarting..."));
             delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
             ESP.restart();
 #endif
         }
+        // no restart guaranteed here (unlike OTA) - hand UART0 back to its repurposed use
+        if (_uart0RepurposedElsewhere)
+            Serial.swap();
         _lastWifiReconnectCheck = millis();
 #endif
     }
 
     void statusErrorOta(const char *errorText)
     {
-        Serial << "setting status to (ota) error: " << errorText << endl;
+        logError() << F("setting status to (ota) error: ") << errorText << endl;
         if (nullptr != _statusLed)
             _statusLed->setBlinkPattern4(OTA_ERROR_BLINK);
         _statusMessage = errorText;
@@ -348,6 +359,17 @@ public:
         _timeClient = timeClient;
     }
 
+    /**
+     * Call this after the sketch has moved UART0/Serial away from its primary (USB) pins via its
+     * own Serial.swap() (e.g. to dedicate it to a different bus). OTA and reconnectWifi() diagnostics
+     * will then temporarily swap back to the USB pins to print, restoring the repurposed pin mapping
+     * afterwards (except for OTA, which always ends in a restart anyway).
+     */
+    void setUart0RepurposedElsewhere(bool repurposed)
+    {
+        _uart0RepurposedElsewhere = repurposed;
+    }
+
     bool isNtpTimeValid()
     {
         return _timeClient != NULL && _ntpTimeValid;
@@ -391,13 +413,12 @@ public:
         Serial.begin(UNIVERSALUI_SERIAL_BAUDRATE);
         while (!Serial)
             ;
+        Serial << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         // Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
         {
-            MUTEX_LOCK
-            Serial << F("setting status pin to ") << statusLedPin << endl;
-            MUTEX_UNLOCK
+            logInfo() << F("setting status pin to ") << statusLedPin << endl;
             _statusLed = new BlinkLed();
             _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
         }
@@ -407,8 +428,7 @@ public:
         }
 
 #if defined(ESP32) || defined(ESP8266)
-        Serial << endl
-               << "MAC address is " << WiFi.macAddress() << endl;
+        logInfo() << F("MAC address is ") << WiFi.macAddress() << endl;
 
 #if defined(ESP32)
         WiFi.setHostname(_appname);
@@ -440,9 +460,7 @@ public:
             } while (ntpTries > 0);
         }
 #endif
-        MUTEX_LOCK
-        Serial << "\nReady\n\n";
-        MUTEX_UNLOCK
+        logInfo() << F("Ready") << endl;
     }
 
     /**
@@ -495,21 +513,21 @@ public:
 
     void statusActive(const char *message)
     {
-        Serial << "setting status to active: " << message << endl;
+        logInfo() << F("setting status to active: ") << message << endl;
         statusLedOn();
         _statusMessage = message;
     }
 
     void statusError(const char *message)
     {
-        Serial << "setting status to error: " << message << endl;
+        logError() << F("setting status to error: ") << message << endl;
         setBlink(125, 125);
         _statusMessage = message;
     }
 
     void statusOk()
     {
-        Serial << "setting status to ok" << endl;
+        logInfo() << F("setting status to ok") << endl;
         statusLedOff();
         _statusMessage = "";
     }
