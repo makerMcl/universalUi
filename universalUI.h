@@ -122,9 +122,14 @@ private:
      * As long there is activity, status LED shall be on.
      */
     byte _activityCount = 0;
-    // true if the sketch has moved UART0/Serial away from its primary (USB) pins via its own
-    // Serial.swap() call, e.g. to use it for a different bus. See setUart0RepurposedElsewhere().
-    bool _uart0RepurposedElsewhere = false;
+    // set if the sketch repurposes UART0/Serial for a different bus. See setUart0HandoverCallback().
+    void (*_uart0HandoverCallback)(bool toUsbConsole) = nullptr;
+
+    void handOverUart0(bool toUsbConsole)
+    {
+        if (nullptr != _uart0HandoverCallback)
+            _uart0HandoverCallback(toUsbConsole);
+    }
 
     void initOTA()
     {
@@ -153,8 +158,7 @@ private:
                 statusActive("OTA update");
                 _otaActive = true;
                 // Update always ends in a restart, so it's fine to leave UART0 on the USB pins here.
-                if (_uart0RepurposedElsewhere)
-                    Serial.swap();
+                handOverUart0(true);
                 Serial.print(F("Start updating "));
                 Serial.println(type); });
         ArduinoOTA.onEnd([this]()
@@ -201,8 +205,7 @@ private:
     void reconnectWifi()
     {
 #if defined(ESP32) || defined(ESP8266)
-        if (_uart0RepurposedElsewhere)
-            Serial.swap(); // temporarily bring UART0 back to its USB pins for these diagnostics
+        handOverUart0(true); // temporarily bring UART0 back to its USB pins for these diagnostics
         WiFi.persistent(false);
         WiFi.disconnect();
         WiFi.mode(WIFI_OFF);
@@ -256,8 +259,7 @@ private:
 #endif
         }
         // no restart guaranteed here (unlike OTA) - hand UART0 back to its repurposed use
-        if (_uart0RepurposedElsewhere)
-            Serial.swap();
+        handOverUart0(false);
         _lastWifiReconnectCheck = millis();
 #endif
     }
@@ -360,14 +362,14 @@ public:
     }
 
     /**
-     * Call this after the sketch has moved UART0/Serial away from its primary (USB) pins via its
-     * own Serial.swap() (e.g. to dedicate it to a different bus). OTA and reconnectWifi() diagnostics
-     * will then temporarily swap back to the USB pins to print, restoring the repurposed pin mapping
-     * afterwards (except for OTA, which always ends in a restart anyway).
+     * Call this after the sketch has repurposed UART0/Serial (e.g. via Serial.swap() for a different bus).
+     * OTA and reconnectWifi() diagnostics call it with true to restore the USB console, and with false
+     * to restore the repurposed configuration afterwards (except for OTA, which always ends in a restart).
+     * Pass nullptr to disable.
      */
-    void setUart0RepurposedElsewhere(bool repurposed)
+    void setUart0HandoverCallback(void (*callback)(bool toUsbConsole))
     {
-        _uart0RepurposedElsewhere = repurposed;
+        _uart0HandoverCallback = callback;
     }
 
     bool isNtpTimeValid()
