@@ -115,6 +115,8 @@ private:
     bool _ntpTimeValid = false;
     unsigned long _lastNtpUpdateMs = 0;
     unsigned long _lastWifiReconnectCheck = 0;
+    bool _wifiWasConnected = false;
+    bool _wifiReconnectStarted = false;
     const char *_userErrorMessage = nullptr;
     word _userErrorMessageBlinkTill = 0;
     /**
@@ -202,6 +204,7 @@ private:
 #endif
     }
 
+    /** Blocking connect with diagnostics on Serial, only used during init(). */
     void reconnectWifi()
     {
 #if defined(ESP32) || defined(ESP8266)
@@ -260,6 +263,38 @@ private:
         }
         // no restart guaranteed here (unlike OTA) - hand UART0 back to its repurposed use
         handOverUart0(false);
+        _wifiWasConnected = (WiFi.status() == WL_CONNECTED);
+        _lastWifiReconnectCheck = millis();
+#endif
+    }
+
+    /** Non-blocking: only (re-)starts the connect, so loop() workload is not stalled while WiFi is down. */
+    void handleWifiReconnect()
+    {
+#if defined(ESP32) || defined(ESP8266)
+        const bool connected = (WiFi.status() == WL_CONNECTED);
+        if (connected != _wifiWasConnected)
+        {
+            _wifiWasConnected = connected;
+            if (connected)
+                logInfo() << F("WiFi connected with IP=") << WiFi.localIP() << endl;
+            else
+                logWarn(F("WiFi connection lost"));
+        }
+        if (connected)
+        {
+            _wifiReconnectStarted = false;
+            return;
+        }
+        if (millis() - _lastWifiReconnectCheck <= UNIVERSALUI_WIFI_RECONNECT_PERIOD)
+            return;
+#ifdef UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
+        if (_wifiReconnectStarted)
+            ESP.restart(); // previous reconnect attempt did not succeed within one period
+#endif
+        logWarn(F("No connection, restarting WiFi connect"));
+        WiFi.begin(ssid, wpsk);
+        _wifiReconnectStarted = true;
         _lastWifiReconnectCheck = millis();
 #endif
     }
@@ -587,11 +622,7 @@ public:
         if (nullptr != _statusLed)
             _statusLed->update();
 #if defined(ESP32) || defined(ESP8266)
-        if ((WiFi.status() != WL_CONNECTED) && (millis() - _lastWifiReconnectCheck) > UNIVERSALUI_WIFI_RECONNECT_PERIOD)
-        {
-            logWarn() << "No connection, performing Wifi reset\n";
-            reconnectWifi();
-        }
+        handleWifiReconnect();
 
         ArduinoOTA.handle();
         if (_otaActive)
