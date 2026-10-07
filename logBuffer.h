@@ -10,6 +10,7 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 You should have received a copy of the GNU General Public License along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 #include <Arduino.h>
+#include <Stream.h>
 
 #ifndef LOG_BUFFER_H
 #define LOG_BUFFER_H
@@ -287,5 +288,77 @@ public:
         MUTEX_UNLOCK;
         return result;
     }
+
+    size_t getHtmlLogLength()
+    {
+        uint8_t chunk[64];
+        size_t length = 0;
+        size_t rotationPoint = 0;
+        size_t count;
+        do
+        {
+            count = getLog(chunk, sizeof(chunk), length, rotationPoint);
+            length += count;
+        } while (count > 0);
+        return length;
+    }
+};
+
+class LogResponseStream : public Stream
+{
+public:
+    LogResponseStream(LogBuffer &source, size_t length)
+        : source(source), length(length), position(0), rotationPoint(0), hasPeeked(false), peeked(0) {}
+
+    int available() override { return static_cast<int>(length - position); }
+
+    int read() override
+    {
+        uint8_t value;
+        return read(&value, 1) == 1 ? value : -1;
+    }
+
+    int peek() override
+    {
+        if (hasPeeked)
+            return peeked;
+        if (position >= length || source.getLog(&peeked, 1, position, rotationPoint) != 1)
+            return -1;
+        hasPeeked = true;
+        return peeked;
+    }
+
+    int read(uint8_t *buffer, size_t size) override
+    {
+        if (!buffer || size == 0 || position >= length)
+            return 0;
+
+        size_t copied = 0;
+        if (hasPeeked)
+        {
+            buffer[copied++] = peeked;
+            ++position;
+            hasPeeked = false;
+        }
+
+        const size_t remaining = min(size - copied, length - position);
+        if (remaining > 0)
+        {
+            const size_t count = source.getLog(buffer + copied, remaining, position, rotationPoint);
+            copied += count;
+            position += count;
+        }
+        return static_cast<int>(copied);
+    }
+
+    size_t write(uint8_t) override { return 0; }
+
+private:
+    LogBuffer &source;
+    size_t length;
+    size_t position;
+    size_t rotationPoint;
+    bool hasPeeked;
+    uint8_t peeked;
 };
 #endif

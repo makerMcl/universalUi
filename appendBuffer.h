@@ -1,6 +1,7 @@
 #ifndef APPENDBUFFER_H
 #define APPENDBUFFER_H
 #include <Arduino.h>
+#include <Stream.h>
 
 // need this (at least onesp32) since arduino loop and webserver might run on different cores/threads
 #if defined(ESP32)
@@ -155,5 +156,33 @@ private:
      * @return number of bytes that can be written at mosted
      */
     size_t getCapacityLeft() { return (_maxsize - (size_t)_appendPos + (size_t)_buf); }
+};
+
+class MemoryResponseStream : public Stream
+{
+public:
+    MemoryResponseStream(const char *data, size_t length)
+        : data(reinterpret_cast<const uint8_t *>(data)), length(length), position(0) {}
+
+    int available() override { return static_cast<int>(length - position); }
+    int read() override { return position < length ? data[position++] : -1; }
+    int peek() override { return position < length ? data[position] : -1; }
+
+    int read(uint8_t *buffer, size_t size) override
+    {
+        if (!buffer || size == 0 || position >= length)
+            return 0;
+        const size_t count = min(size, length - position);
+        memcpy(buffer, data + position, count);
+        position += count;
+        return static_cast<int>(count);
+    }
+
+    size_t write(uint8_t) override { return 0; }
+
+private:
+    const uint8_t *data;
+    size_t length;
+    size_t position;
 };
 #endif

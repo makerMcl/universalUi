@@ -723,6 +723,7 @@ public:
     {
         return _log.getLog(buf, maxLen, index, bufferRotationPoint);
     }
+    LogBuffer &getLogBuffer() { return _log; }
 
     static void printTimeInterval(char *buf, word millis)
     {
