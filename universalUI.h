@@ -126,6 +126,8 @@ private:
     byte _activityCount = 0;
     // set if the sketch repurposes UART0/Serial for a different bus. See setUart0HandoverCallback().
     void (*_uart0HandoverCallback)(bool toUsbConsole) = nullptr;
+    uint32_t lastUptimeMillis = 0;
+    uint32_t uptimeOverflowCount = 0;
 
     void handOverUart0(bool toUsbConsole)
     {
@@ -608,6 +610,26 @@ public:
     bool hasStatusMessage() { return '\0' != _statusMessage[0]; }
     const char *getStatusMessage() { return _statusMessage.c_str(); }
 
+    uint64_t getUptimeMillis()
+    {
+        const uint32_t now = millis();
+        if (now < lastUptimeMillis)
+            ++uptimeOverflowCount;
+        lastUptimeMillis = now;
+        return (static_cast<uint64_t>(uptimeOverflowCount) << 32) + now;
+    }
+    void appendUptime(AppendBuffer &buf)
+    {
+        const uint64_t uptimeSeconds = getUptimeMillis() / 1000;
+        if (uptimeSeconds >= 86400)
+            buf.printf("%llu Tage ", static_cast<unsigned long long>(uptimeSeconds / 86400));
+        if (uptimeSeconds >= 3600)
+            buf.printf("%lu Stunden ", static_cast<unsigned long>((uptimeSeconds / 3600) % 24));
+        if (uptimeSeconds >= 60)
+            buf.printf("%lu Minuten ", static_cast<unsigned long>((uptimeSeconds / 60) % 60));
+        buf.printf("%lu Sekunden</li>", static_cast<unsigned long>(uptimeSeconds % 60));
+    }
+
     /**
      * To be called in <code>loop()</code>.
      * <ul>
@@ -648,6 +670,7 @@ public:
                 logError("time update failed from NTP");
             _lastNtpUpdateMs = millis();
         }
+        getUptimeMillis();
         return true;
     }
 
