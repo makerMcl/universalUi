@@ -38,6 +38,7 @@ extern "C"
 #include "blinkLed.h"
 #include "appendBuffer.h"
 #include "Logger.h"
+#include "NtpTimeReference.h"
 
 // configuration section, to be modified via earlier #define's
 #ifndef NTP_UPDATE_INTERVAL
@@ -113,7 +114,9 @@ private:
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
-    unsigned long _lastNtpUpdateMs = 0;
+    unsigned long _lastNtpAttemptMs = 0;
+    bool _lastNtpAttemptSucceeded = false;
+    NtpTimeReference _ntpTimeReference;
     unsigned long _lastWifiReconnectCheck = 0;
     bool _wifiWasConnected = false;
     bool _wifiReconnectStarted = false;
@@ -314,12 +317,12 @@ public:
     {
         if (NULL != _timeClient && _ntpTimeValid)
         {
-            const unsigned long rawTime = _timeClient->getEpochTime();
-            const unsigned long millisElapsed = (millis() - _lastNtpUpdateMs); // calculate immediately, to minimize deviation
+            const uint64_t epochMillis = _ntpTimeReference.epochMillis(getUptimeMillis());
+            const unsigned long rawTime = static_cast<unsigned long>(epochMillis / 1000);
             output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");         // hh
             output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");             // mm
             output << _WIDTHZ(rawTime % 60, 2) << F(".");                      // ss
-            output << _WIDTHZ(millisElapsed % 1000, 3);                        // millis
+            output << _WIDTHZ(static_cast<unsigned long>(epochMillis % 1000), 3);
         }
         else
         {
@@ -501,10 +504,12 @@ public:
             do
             {
                 _ntpTimeValid = _timeClient->forceUpdate();
+                _lastNtpAttemptMs = millis();
+                _lastNtpAttemptSucceeded = _ntpTimeValid;
                 if (_ntpTimeValid)
                 {
-                    _lastNtpUpdateMs = millis();
-                    logInfo() << "initialized NTP client at millis()=" << _lastNtpUpdateMs << ", time is " << _timeClient->getFormattedTime() << endl;
+                    _ntpTimeReference.update(_timeClient->getEpochTime(), getUptimeMillis());
+                    logInfo() << "initialized NTP client at millis()=" << _lastNtpAttemptMs << ", time is " << _timeClient->getFormattedTime() << endl;
                     ntpTries = 0;
                     break;
                 }
@@ -700,12 +705,12 @@ public:
     {
         const uint64_t uptimeSeconds = getUptimeMillis() / 1000;
         if (uptimeSeconds >= 86400)
-            buf.printf("%llu Tage ", static_cast<unsigned long long>(uptimeSeconds / 86400));
+            buf.printf("%llu days ", static_cast<unsigned long long>(uptimeSeconds / 86400));
         if (uptimeSeconds >= 3600)
-            buf.printf("%lu Stunden ", static_cast<unsigned long>((uptimeSeconds / 3600) % 24));
+            buf.printf("%lu h ", static_cast<unsigned long>((uptimeSeconds / 3600) % 24));
         if (uptimeSeconds >= 60)
-            buf.printf("%lu Minuten ", static_cast<unsigned long>((uptimeSeconds / 60) % 60));
-        buf.printf("%lu Sekunden", static_cast<unsigned long>(uptimeSeconds % 60));
+            buf.printf("%lu min ", static_cast<unsigned long>((uptimeSeconds / 60) % 60));
+        buf.printf("%lu sec", static_cast<unsigned long>(uptimeSeconds % 60));
     }
 
     /**
@@ -739,14 +744,29 @@ public:
                 statusLedOn();
         }
         // update cycle for NTP queries
-        if (NULL != _timeClient && ((long)(millis() - _lastNtpUpdateMs) >= (_ntpTimeValid ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL)))
+        if (NULL != _timeClient && millis() - _lastNtpAttemptMs >=
+            static_cast<unsigned long>(_lastNtpAttemptSucceeded ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL))
         {
-            _ntpTimeValid = _timeClient->forceUpdate();
-            if (_ntpTimeValid)
-                logInfo("time updated successfully from NTP");
+            _lastNtpAttemptSucceeded = _timeClient->forceUpdate();
+            _lastNtpAttemptMs = millis();
+            if (_lastNtpAttemptSucceeded)
+            {
+                const bool hadTimeReference = _ntpTimeReference.isValid();
+                const int64_t correctionMillis = _ntpTimeReference.update(_timeClient->getEpochTime(), getUptimeMillis());
+                _ntpTimeValid = true;
+                printTimeWithMillis(_log);
+                _log << F("   INFO  \t[UniversalUI] NTP time updated; ");
+                if (hadTimeReference)
+                {
+                    _log << F("log clock correction=");
+                    _log.printf("%+.3f s", static_cast<double>(correctionMillis) / 1000.0);
+                }
+                else
+                    _log << F("log clock initialized");
+                _log << endl;
+            }
             else
-                logError("time update failed from NTP");
-            _lastNtpUpdateMs = millis();
+                logError("time update failed from NTP; keeping previous log time reference");
         }
         getUptimeMillis();
         return true;
