@@ -309,24 +309,36 @@ private:
         _statusMessage = errorText;
     }
 
-    Print &log(const __FlashStringHelper *prefix)
+public:
+    Print &printTimeWithMillis(Print &output)
     {
         if (NULL != _timeClient && _ntpTimeValid)
         {
-            _log << _timeClient->getFormattedTime();
-
             const unsigned long rawTime = _timeClient->getEpochTime();
             const unsigned long millisElapsed = (millis() - _lastNtpUpdateMs); // calculate immediately, to minimize deviation
-            _log << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");           // hh
-            _log << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");               // mm
-            _log << _WIDTHZ(rawTime % 60, 2) << F(".");                        // ss
-            _log << _WIDTHZ(millisElapsed % 1000, 3);                          // millis
+            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");
+            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");
+            output << _WIDTHZ(rawTime % 60, 2) << F(".");
+            output << _WIDTHZ(millisElapsed % 1000, 3);
         }
         else
         {
-            _log << _WIDTH(millis(), 8);
+            output << _WIDTH(millis(), 8);
         }
-        _log << F("   ") << prefix;
+        return output;
+    }
+
+private:
+    Print &log(LogLevel level)
+    {
+        if (!shouldLog(level))
+            return ignoredLog();
+        printTimeWithMillis(_log);
+        const __FlashStringHelper *levelName = getLogLevelName(level);
+        _log << F("   ") << levelName;
+        if (strlen_P(reinterpret_cast<PGM_P>(levelName)) < 5)
+            _log << F(" ");
+        _log << F(" \t");
         return _log;
     }
 
@@ -610,9 +622,65 @@ public:
     bool hasStatusMessage() { return '\0' != _statusMessage[0]; }
     const char *getStatusMessage() { return _statusMessage.c_str(); }
 
-    uint64_t getUptimeMillis()
+    static const __FlashStringHelper *getLogLevelName(LogLevel level)
     {
-        const uint32_t now = millis();
+        switch (level)
+        {
+        case LogLevel::TRACE:
+            return F("TRACE");
+        case LogLevel::DEBUG:
+            return F("DEBUG");
+        case LogLevel::INFO:
+            return F("INFO");
+        case LogLevel::WARN:
+            return F("WARN");
+        case LogLevel::ERROR:
+            return F("ERROR");
+        }
+        return F("???");
+    }
+
+    bool setLogLevelFromString(const String &levelName)
+    {
+        for (uint8_t levelIndex = 0; levelIndex <= static_cast<uint8_t>(LogLevel::ERROR); ++levelIndex)
+        {
+            const LogLevel level = static_cast<LogLevel>(levelIndex);
+            if (strcmp_P(levelName.c_str(), reinterpret_cast<PGM_P>(getLogLevelName(level))) == 0)
+            {
+                setLogLevel(level);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void appendLogLevelHtml(AppendBuffer &buf) const
+    {
+        for (uint8_t levelIndex = 0; levelIndex <= static_cast<uint8_t>(LogLevel::ERROR); ++levelIndex)
+        {
+            const LogLevel level = static_cast<LogLevel>(levelIndex);
+            const __FlashStringHelper *levelName = getLogLevelName(level);
+            if (levelIndex > 0)
+                buf.append_P(F(" | "));
+            if (getLogLevel() == level)
+            {
+                buf.append_P(F("<strong>"));
+                buf.append_P(levelName);
+                buf.append_P(F("</strong>"));
+            }
+            else
+            {
+                buf.append_P(F("<a href=\"?logLevel="));
+                buf.append_P(levelName);
+                buf.append_P(F("\">"));
+                buf.append_P(levelName);
+                buf.append_P(F("</a>"));
+            }
+        }
+    }
+
+    uint64_t getUptimeMillis(uint32_t now = millis())
+    {
         if (now < lastUptimeMillis)
             ++uptimeOverflowCount;
         lastUptimeMillis = now;
@@ -627,7 +695,7 @@ public:
             buf.printf("%lu Stunden ", static_cast<unsigned long>((uptimeSeconds / 3600) % 24));
         if (uptimeSeconds >= 60)
             buf.printf("%lu Minuten ", static_cast<unsigned long>((uptimeSeconds / 60) % 60));
-        buf.printf("%lu Sekunden</li>", static_cast<unsigned long>(uptimeSeconds % 60));
+        buf.printf("%lu Sekunden", static_cast<unsigned long>(uptimeSeconds % 60));
     }
 
     /**
@@ -676,27 +744,27 @@ public:
 
     Print &logError()
     {
-        return log(F("ERROR \t"));
+        return log(LogLevel::ERROR);
     }
 
     Print &logWarn()
     {
-        return log(F("WARN \t"));
+        return log(LogLevel::WARN);
     }
 
     Print &logInfo()
     {
-        return log(F("INFO  \t"));
+        return log(LogLevel::INFO);
     }
 
     Print &logDebug()
     {
-        return log(F("DEBUG \t"));
+        return log(LogLevel::DEBUG);
     }
 
     Print &logTrace()
     {
-        return log(F("TRACE \t"));
+        return log(LogLevel::TRACE);
     }
 
     void logError(const String msg)
