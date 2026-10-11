@@ -13,7 +13,7 @@ private:
         size_t write(uint8_t) override { return 1; }
         size_t write(const uint8_t *, size_t size) override { return size; }
     } discardedLog;
-    LogLevel minimumLogLevel = LogLevel::TRACE;
+    LogLevel minimumLogLevel = LogLevel::DEBUG;
 
 protected:
     bool shouldLog(LogLevel level) const { return level >= minimumLogLevel; }

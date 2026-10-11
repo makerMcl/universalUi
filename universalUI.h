@@ -392,9 +392,10 @@ public:
      * Creates UniversalUI component with no status LED.
      * @param appname name of application. Used for hostname, OTA id and page header.
      */
-    UniversalUI(const char *appname)
+    UniversalUI(const char *appname, LogLevel initialLogLevel = LogLevel::DEBUG)
     {
         _appname = appname;
+        setLogLevel(initialLogLevel);
     }
 
     const char *getAppName() const
