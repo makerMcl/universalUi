@@ -650,6 +650,13 @@ public:
             const LogLevel level = static_cast<LogLevel>(levelIndex);
             if (strcmp_P(levelName.c_str(), reinterpret_cast<PGM_P>(getLogLevelName(level))) == 0)
             {
+                const LogLevel previousLevel = getLogLevel();
+                if (previousLevel != level)
+                {
+                    printTimeWithMillis(_log);
+                    _log << F("   INFO  \t[UniversalUI] Log level: ") << getLogLevelName(previousLevel)
+                         << F(" -> ") << getLogLevelName(level) << endl;
+                }
                 setLogLevel(level);
                 return true;
             }
