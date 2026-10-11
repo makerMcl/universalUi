@@ -316,10 +316,10 @@ public:
         {
             const unsigned long rawTime = _timeClient->getEpochTime();
             const unsigned long millisElapsed = (millis() - _lastNtpUpdateMs); // calculate immediately, to minimize deviation
-            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");
-            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");
-            output << _WIDTHZ(rawTime % 60, 2) << F(".");
-            output << _WIDTHZ(millisElapsed % 1000, 3);
+            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");         // hh
+            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");             // mm
+            output << _WIDTHZ(rawTime % 60, 2) << F(".");                      // ss
+            output << _WIDTHZ(millisElapsed % 1000, 3);                        // millis
         }
         else
         {
@@ -343,35 +343,37 @@ private:
     }
 
     /** @return append position */
-    static char *printTimeInterval(char *buf, word m, byte idx)
+    static char *printTimeInterval(char *buf, uint64_t duration, byte idx)
     {
-        const byte v = m % TIME_UNIT_DIVIDER[idx];
-        if (0 < TIME_UNIT_DIVIDER[idx])
+        const uint64_t divider = TIME_UNIT_DIVIDER[idx];
+        const uint64_t value = divider > 0 ? duration % divider : duration;
+        if (divider > 0)
         {
-            m /= TIME_UNIT_DIVIDER[idx];
-            if (m > 0)
+            duration /= divider;
+            if (duration > 0)
             {
-                buf = printTimeInterval(buf, m, idx + 1);
+                buf = printTimeInterval(buf, duration, idx + 1);
                 buf += sprintf(buf, ", ");
             }
         }
-        buf += sprintf_P(buf, PSTR("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
+        buf += sprintf_P(buf, PSTR("%llu%s"), static_cast<unsigned long long>(value), TIME_UNIT_LABEL[idx].c_str());
         return buf;
     }
 
-    static void appendTimeInterval(AppendBuffer buf, word m, byte idx)
+    static void appendTimeInterval(AppendBuffer &buf, uint64_t duration, byte idx)
     {
-        const byte v = m % TIME_UNIT_DIVIDER[idx];
-        if (0 < TIME_UNIT_DIVIDER[idx])
+        const uint64_t divider = TIME_UNIT_DIVIDER[idx];
+        const uint64_t value = divider > 0 ? duration % divider : duration;
+        if (divider > 0)
         {
-            m /= TIME_UNIT_DIVIDER[idx];
-            if (m > 0)
+            duration /= divider;
+            if (duration > 0)
             {
-                appendTimeInterval(buf, m, idx + 1);
+                appendTimeInterval(buf, duration, idx + 1);
                 buf.append_P(F(", "));
             }
         }
-        buf.printf_P(PSTR("%d%s"), v, &(TIME_UNIT_LABEL[idx][0]));
+        buf.printf_P(PSTR("%llu%s"), static_cast<unsigned long long>(value), TIME_UNIT_LABEL[idx].c_str());
     }
 
     void checkStatusLed()
@@ -816,11 +818,11 @@ public:
     }
     LogBuffer &getLogBuffer() { return _log; }
 
-    static void printTimeInterval(char *buf, word millis)
+    static void printTimeInterval(char *buf, uint64_t millis)
     {
         printTimeInterval(buf, millis, 0);
     }
-    static void appendTimeInterval(AppendBuffer buf, word millis)
+    static void appendTimeInterval(AppendBuffer &buf, uint64_t millis)
     {
         appendTimeInterval(buf, millis, 0);
     }

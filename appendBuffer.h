@@ -30,9 +30,13 @@ public:
     }
     void vprintf_P(const char *pstrFormat, va_list args)
     {
-        const int remains = getCapacityLeft();
+        const size_t remains = getCapacityLeft();
+        if (remains == 0)
+            return;
         const int written = vsnprintf_P(_appendPos, remains, pstrFormat, args);
-        _appendPos += (written < remains) ? written : remains;
+        if (written > 0)
+            _appendPos += min(static_cast<size_t>(written), remains - 1);
+        *_appendPos = '\0';
     }
     /** Convenience function - shortcut for: <code>abuf.reset(); abuf.printf_P(); return abuf.c_str();</code> */
     const char *format(const char *pstrFormat...)
@@ -52,6 +56,8 @@ public:
     }
     size_t write(const char *str)
     {
+        if (_maxsize == 0 || !str)
+            return 0;
         MUTEX_LOCK;
         size_t maxLength = getCapacityLeft();
         size_t written = 0;
@@ -69,6 +75,8 @@ public:
     /** Append string from flash/program memory to this buffer */
     void append_P(const __FlashStringHelper *pgmstr)
     {
+        if (_maxsize == 0 || !pgmstr)
+            return;
         MUTEX_LOCK;
         // _appendPos = appendstr_P(_appendPos, pgmstr, _maxsize - _appendPos + _buf);
         const char *pstr = (char *)pgmstr;
@@ -105,7 +113,8 @@ public:
     {
         MUTEX_LOCK;
         _appendPos = _buf;
-        *_buf = '\0';
+        if (_maxsize > 0)
+            *_buf = '\0';
         MUTEX_UNLOCK;
     }
 
@@ -120,7 +129,7 @@ public:
     size_t size()
     {
         MUTEX_LOCK;
-        const size_t result = (_appendPos - _buf);
+        const size_t result = _buf ? (_appendPos - _buf) : 0;
         MUTEX_UNLOCK;
         return result;
     }
@@ -129,33 +138,46 @@ public:
      * Create an instance with externally supplied memory for buffer.
      * This allows to use statically allocated memory to be recognized at linking time.
      */
-    AppendBuffer(const size_t size, char *buf) : _maxsize(size), _buf(buf)
+    AppendBuffer(const size_t size, char *buf) : _maxsize(buf ? size : 0), _buf(buf), _ownsBuffer(false)
     {
-        _appendPos = _buf;
+        reset();
     }
 
     /**
      * Use this constructor at your own risk: the linker won't provide an error if not enough memory available!
      */
-    AppendBuffer(size_t size) : _maxsize(size), _buf(new char[_maxsize])
+    AppendBuffer(size_t size) : _maxsize(size > 0 ? size : 1), _buf(new char[_maxsize]), _ownsBuffer(true)
     {
-        _appendPos = _buf;
+        reset();
+    }
+    AppendBuffer(const AppendBuffer &) = delete;
+    AppendBuffer &operator=(const AppendBuffer &) = delete;
+    AppendBuffer &operator=(AppendBuffer &&) = delete;
+    AppendBuffer(AppendBuffer &&other)
+        : _maxsize(other._maxsize), _buf(other._buf), _appendPos(other._appendPos), _ownsBuffer(other._ownsBuffer)
+    {
+        other._maxsize = 0;
+        other._buf = nullptr;
+        other._appendPos = nullptr;
+        other._ownsBuffer = false;
     }
     ~AppendBuffer()
     {
-        delete _buf;
+        if (_ownsBuffer)
+            delete[] _buf;
     }
 
 private:
     size_t _maxsize; // number of characters, including the trailing '\0'
     char *_buf;
     char *_appendPos; // position in buffer where next character to place at
+    bool _ownsBuffer;
 
     /** 
      * Not synchronized!
      * @return number of bytes that can be written at mosted
      */
-    size_t getCapacityLeft() { return (_maxsize - (size_t)_appendPos + (size_t)_buf); }
+    size_t getCapacityLeft() { return _buf ? _maxsize - static_cast<size_t>(_appendPos - _buf) : 0; }
 };
 
 class MemoryResponseStream : public Stream
