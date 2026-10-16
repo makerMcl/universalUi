@@ -45,10 +45,6 @@ extern "C"
 #define NTP_UPDATE_INTERVAL 3600000 // every hour, in [ms]
 #define NTP_RETRY_INTERVAL 60000    // once a minute, in [ms]
 #endif
-#ifndef NTP_INITIAL_TRIES
-#define NTP_INITIAL_TRIES 3
-#endif
-
 #ifndef UNIVERSALUI_WIFI_MAX_CONNECT_TRIES
 #define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 15 // total initial wait is tries * UNIVERSALUI_WIFI_RECONNECT_WAIT
 #endif
@@ -540,23 +536,8 @@ public:
         if (NULL != _timeClient)
         {
             _timeClient->begin();
-            int ntpTries = NTP_INITIAL_TRIES;
-            do
-            {
-                _ntpTimeValid = _timeClient->forceUpdate();
-                _lastNtpAttemptMs = millis();
-                _lastNtpAttemptSucceeded = _ntpTimeValid;
-                if (_ntpTimeValid)
-                {
-                    _ntpTimeReference.update(_timeClient->getEpochTime(), getUptimeMillis());
-                    logInfo() << "initialized NTP client at millis()=" << _lastNtpAttemptMs << ", time is " << _timeClient->getFormattedTime() << endl;
-                    ntpTries = 0;
-                    break;
-                }
-                --ntpTries;
-                logError() << "failed getting NTP time (" << ntpTries << ")" << endl;
-                delay(500);
-            } while (ntpTries > 0);
+            _lastNtpAttemptMs = millis();
+            _lastNtpAttemptSucceeded = false;
         }
 #endif
         logInfo() << F("Ready") << endl;
