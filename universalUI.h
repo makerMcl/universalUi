@@ -50,7 +50,7 @@ extern "C"
 #endif
 
 #ifndef UNIVERSALUI_WIFI_MAX_CONNECT_TRIES
-#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 10 // between each try is a delay of UNIVERSALUI_WIFI_RECONNECT_WAIT (defaults to 500ms), we should wait 3seconds at least
+#define UNIVERSALUI_WIFI_MAX_CONNECT_TRIES 15 // total initial wait is tries * UNIVERSALUI_WIFI_RECONNECT_WAIT
 #endif
 #ifndef UNIVERSALUI_WIFI_RECONNECT_WAIT
 #define UNIVERSALUI_WIFI_RECONNECT_WAIT 1000 // in [ms], delay between next WiFi status check
@@ -61,6 +61,7 @@ extern "C"
 
 // optional configuration settings, to be defined before including this file
 // #define UNIVERSALUI_WIFI_REBOOT_ON_FAILED_CONNECT
+// #define UNIVERSALUI_DISABLE_WIFI_CONNECT_LED
 // #define COPY_TO_SERIAL                    // if logged messages should be immediately printed on Serial
 
 // following settings are per default adapted to default behaviour of the board
@@ -220,26 +221,58 @@ private:
         WiFi.mode(WIFI_STA);
         // WiFi.config(ip, gateway, subnet); // Only for fix IP needed
         WiFi.begin(ssid, wpsk);
-        int triesLeft = UNIVERSALUI_WIFI_MAX_CONNECT_TRIES;
-        while (WiFi.status() != WL_CONNECTED && triesLeft > 0)
+        const unsigned long connectStarted = millis();
+        const unsigned long connectTimeout =
+            static_cast<unsigned long>(UNIVERSALUI_WIFI_MAX_CONNECT_TRIES) * UNIVERSALUI_WIFI_RECONNECT_WAIT;
+        wl_status_t status = WiFi.status();
+        IPAddress localIp;
+        bool connected = false;
+#if !defined(UNIVERSALUI_DISABLE_WIFI_CONNECT_LED) && defined(LED_BUILTIN)
+        BlinkLed wifiConnectLed;
+#if defined(ESP8266)
+        wifiConnectLed.init(LED_BUILTIN, ACTIVE_LOW);
+#else
+        wifiConnectLed.init(LED_BUILTIN, ACTIVE_HIGH);
+#endif
+        wifiConnectLed.setBlink(900, 100);
+#endif
+        while (millis() - connectStarted < connectTimeout)
         {
-            --triesLeft;
-            delay(UNIVERSALUI_WIFI_RECONNECT_WAIT);
+            status = WiFi.status();
+            if (WL_CONNECTED == status)
+            {
+                localIp = WiFi.localIP();
+                connected = localIp != IPAddress(0, 0, 0, 0);
+                if (connected)
+                    break;
+            }
+            else if (WL_DISCONNECTED != status && WL_IDLE_STATUS != status)
+            {
+                break;
+            }
+#if !defined(UNIVERSALUI_DISABLE_WIFI_CONNECT_LED) && defined(LED_BUILTIN)
+            wifiConnectLed.update();
+#endif
+            delay(100);
         }
-        if (WiFi.status() == WL_CONNECTED)
+#if !defined(UNIVERSALUI_DISABLE_WIFI_CONNECT_LED) && defined(LED_BUILTIN)
+        wifiConnectLed.off();
+#endif
+        checkStatusLed();
+        if (connected)
         {
             Serial.print(F("Connected with IP="));
-            Serial.println(WiFi.localIP());
+            Serial.println(localIp);
         }
         else
         {
             Serial.print(F("Connect failed, status="));
-            Serial.print(WiFi.status());
+            Serial.print(status);
             Serial.print(F(" ("));
-            switch (WiFi.status())
+            switch (status)
             {
             case WL_IDLE_STATUS:
-                Serial.print(F("IDLE"));
+                Serial.print(F("IDLE_TIMEOUT"));
                 break;
             case WL_NO_SSID_AVAIL:
                 Serial.print(F("NO_SSID_AVAIL"));
@@ -250,11 +283,17 @@ private:
             case WL_CONNECT_FAILED:
                 Serial.print(F("CONNECT_FAILED"));
                 break;
+            case WL_WRONG_PASSWORD:
+                Serial.print(F("WRONG_PASSWORD"));
+                break;
             case WL_CONNECTION_LOST:
                 Serial.print(F("CONNECTION_LOST"));
                 break;
             case WL_DISCONNECTED:
                 Serial.print(F("DISCONNECTED"));
+                break;
+            case WL_CONNECTED:
+                Serial.print(F("CONNECTED_NO_IP"));
                 break;
             default:
                 Serial.print(F("unknown"));
@@ -268,7 +307,7 @@ private:
         }
         // no restart guaranteed here (unlike OTA) - hand UART0 back to its repurposed use
         handOverUart0(false);
-        _wifiWasConnected = (WiFi.status() == WL_CONNECTED);
+        _wifiWasConnected = connected;
         _lastWifiReconnectCheck = millis();
 #endif
     }
@@ -277,7 +316,8 @@ private:
     void handleWifiReconnect()
     {
 #if defined(ESP32) || defined(ESP8266)
-        const bool connected = (WiFi.status() == WL_CONNECTED);
+        const bool connected = (WiFi.status() == WL_CONNECTED) &&
+                               (WiFi.localIP() != IPAddress(0, 0, 0, 0));
         if (connected != _wifiWasConnected)
         {
             _wifiWasConnected = connected;
@@ -319,9 +359,9 @@ public:
         {
             const uint64_t epochMillis = _ntpTimeReference.epochMillis(getUptimeMillis());
             const unsigned long rawTime = static_cast<unsigned long>(epochMillis / 1000);
-            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":");         // hh
-            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");             // mm
-            output << _WIDTHZ(rawTime % 60, 2) << F(".");                      // ss
+            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":"); // hh
+            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");     // mm
+            output << _WIDTHZ(rawTime % 60, 2) << F(".");              // ss
             output << _WIDTHZ(static_cast<unsigned long>(epochMillis % 1000), 3);
         }
         else
@@ -745,7 +785,7 @@ public:
         }
         // update cycle for NTP queries
         if (NULL != _timeClient && millis() - _lastNtpAttemptMs >=
-            static_cast<unsigned long>(_lastNtpAttemptSucceeded ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL))
+                                       static_cast<unsigned long>(_lastNtpAttemptSucceeded ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL))
         {
             _lastNtpAttemptSucceeded = _timeClient->forceUpdate();
             _lastNtpAttemptMs = millis();
