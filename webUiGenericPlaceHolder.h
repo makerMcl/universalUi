@@ -12,10 +12,17 @@ extern "C"
 #include "universalUIglobal.h"
 #include "debug.h"
 
+static void sendPgmStaticContent(ESP8266WebServer &server, const char *content_type, const uint8_t *content, size_t contentLength, bool gzip = false)
+{
+    server.sendHeader("Cache-Control", "public, max-age=604800"); // 7 days, reload can still be forced with Strg-F5
+    if (gzip)
+        server.sendHeader("Content-Encoding", "gzip");
+    server.send_P(200, content_type, (const char *)content, contentLength);
+}
+
 static void sendPgmGZipContent(ESP8266WebServer &server, const char *content_type, const uint8_t *content, size_t contentLength)
 {
-    server.sendHeader("Content-Encoding", "gzip");
-    server.send_P(200, content_type, (const char *)content, contentLength);
+    sendPgmStaticContent(server, content_type, content, contentLength, true);
 }
 
 // TODO migrate this function for data-query methodology
