@@ -108,6 +108,7 @@ private:
     BlinkLed *_statusLed;
     String _statusMessage = "";
     LogBuffer _log = LogBuffer(LOGBUF_LENGTH, staticlogBufferMemory, true);
+    LoggerView _uiLogger;
     bool _otaActive = false;
     NTPClient *_timeClient = NULL;
     bool _ntpTimeValid = false;
@@ -318,7 +319,7 @@ private:
         {
             _wifiWasConnected = connected;
             if (connected)
-                logInfo() << F("WiFi connected with IP=") << WiFi.localIP() << endl;
+                _uiLogger->logInfo() << F("WiFi connected with IP=") << WiFi.localIP() << endl;
             else
                 logWarn(F("WiFi connection lost"));
         }
@@ -342,7 +343,7 @@ private:
 
     void statusErrorOta(const char *errorText)
     {
-        logError() << F("setting status to (ota) error: ") << errorText << endl;
+        _uiLogger->logError() << F("setting status to (ota) error: ") << errorText << endl;
         if (nullptr != _statusLed)
             _statusLed->setBlinkPattern4(OTA_ERROR_BLINK);
         _statusMessage = errorText;
@@ -432,6 +433,7 @@ public:
      * @param appname name of application. Used for hostname, OTA id and page header.
      */
     UniversalUI(const char *appname, LogLevel initialLogLevel = LogLevel::DEBUG)
+        : _uiLogger(this, F("UI"))
     {
         _appname = appname;
         setLogLevel(initialLogLevel);
@@ -507,11 +509,11 @@ public:
         while (!Serial)
             ;
         Serial << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
-        logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
+        _uiLogger->logInfo() << "Sketchname: " << mainFileName << ", Build: " << buildTimestamp << ", SDK: " << _UNIVERSALUI_SDKVERSION << endl;
         // Serial <<"compiler version: "<< __VERSION__<<endl;
         if (NOT_A_PIN != statusLedPin)
         {
-            logInfo() << F("setting status pin to ") << statusLedPin << endl;
+            _uiLogger->logInfo() << F("setting status pin to ") << statusLedPin << endl;
             _statusLed = new BlinkLed();
             _statusLed->init(statusLedPin, statusLedActiveOnLow ? ACTIVE_LOW : ACTIVE_HIGH);
         }
@@ -521,7 +523,7 @@ public:
         }
 
 #if defined(ESP32) || defined(ESP8266)
-        logInfo() << F("MAC address is ") << WiFi.macAddress() << endl;
+        _uiLogger->logInfo() << F("MAC address is ") << WiFi.macAddress() << endl;
 
 #if defined(ESP32)
         WiFi.setHostname(_appname);
@@ -540,7 +542,7 @@ public:
             _lastNtpAttemptSucceeded = false;
         }
 #endif
-        logInfo() << F("Ready") << endl;
+        _uiLogger->logInfo() << F("Ready") << endl;
     }
 
     /**
@@ -593,21 +595,21 @@ public:
 
     void statusActive(const char *message)
     {
-        logInfo() << F("setting status to active: ") << message << endl;
+        _uiLogger->logInfo() << F("setting status to active: ") << message << endl;
         statusLedOn();
         _statusMessage = message;
     }
 
     void statusError(const char *message)
     {
-        logError() << F("setting status to error: ") << message << endl;
+        _uiLogger->logError() << F("setting status to error: ") << message << endl;
         setBlink(125, 125);
         _statusMessage = message;
     }
 
     void statusOk()
     {
-        logInfo() << F("setting status to ok") << endl;
+        _uiLogger->logInfo() << F("setting status to ok") << endl;
         statusLedOff();
         _statusMessage = "";
     }
@@ -623,7 +625,7 @@ public:
         if (_userErrorMessageBlinkTill < millis())
         {
             // handle overflow: shorten blink time, blink till overflow value
-            logDebug() << F("ui error blink with overflow: millis=") << millis() << F(", should blink till") << _userErrorMessageBlinkTill << endl;
+            _uiLogger->logDebug() << F("ui error blink with overflow: millis=") << millis() << F(", should blink till") << _userErrorMessageBlinkTill << endl;
             _userErrorMessageBlinkTill = -1000;
         }
         if (nullptr != _statusLed)
@@ -679,9 +681,8 @@ public:
                 const LogLevel previousLevel = getLogLevel();
                 if (previousLevel != level)
                 {
-                    printTimeWithMillis(_log);
-                    _log << F("   INFO  \t[UniversalUI] Log level: ") << getLogLevelName(previousLevel)
-                         << F(" -> ") << getLogLevelName(level) << endl;
+                    _uiLogger->logInfo() << F("Log level: ") << getLogLevelName(previousLevel)
+                                     << F(" -> ") << getLogLevelName(level) << endl;
                 }
                 setLogLevel(level);
                 return true;
@@ -775,16 +776,16 @@ public:
                 const bool hadTimeReference = _ntpTimeReference.isValid();
                 const int64_t correctionMillis = _ntpTimeReference.update(_timeClient->getEpochTime(), getUptimeMillis());
                 _ntpTimeValid = true;
-                printTimeWithMillis(_log);
-                _log << F("   INFO  \t[UniversalUI] NTP time updated; ");
+                Print &log = _uiLogger->logInfo();
+                log << F("NTP time updated; ");
                 if (hadTimeReference)
                 {
-                    _log << F("log clock correction=");
-                    _log.printf("%+.3f s", static_cast<double>(correctionMillis) / 1000.0);
+                    log << F("log clock correction=");
+                    log.printf("%+.3f s", static_cast<double>(correctionMillis) / 1000.0);
                 }
                 else
-                    _log << F("log clock initialized");
-                _log << endl;
+                    log << F("log clock initialized");
+                log << endl;
             }
             else
                 logError("time update failed from NTP; keeping previous log time reference");
@@ -820,35 +821,35 @@ public:
 
     void logError(const String msg)
     {
-        logError() << msg << endl;
+        _uiLogger->logError() << msg << endl;
     }
     void logError(const __FlashStringHelper *msg)
     {
-        logError() << msg << endl;
+        _uiLogger->logError() << msg << endl;
     }
     void logWarn(const String msg)
     {
-        logWarn() << msg << endl;
+        _uiLogger->logWarn() << msg << endl;
     }
     void logWarn(const __FlashStringHelper *msg)
     {
-        logWarn() << msg << endl;
+        _uiLogger->logWarn() << msg << endl;
     }
     void logInfo(const String msg)
     {
-        logInfo() << msg << endl;
+        _uiLogger->logInfo() << msg << endl;
     }
     void logInfo(const __FlashStringHelper *msg)
     {
-        logInfo() << msg << endl;
+        _uiLogger->logInfo() << msg << endl;
     }
     void logDebug(const String msg)
     {
-        logDebug() << msg << endl;
+        _uiLogger->logDebug() << msg << endl;
     }
     void logDebug(const __FlashStringHelper *msg)
     {
-        logDebug() << msg << endl;
+        _uiLogger->logDebug() << msg << endl;
     }
 
     /**
