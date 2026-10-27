@@ -352,19 +352,23 @@ private:
 public:
     Print &printTimeWithMillis(Print &output)
     {
+        char timestamp[16];
+        int length;
         if (NULL != _timeClient && _ntpTimeValid)
         {
             const uint64_t epochMillis = _ntpTimeReference.epochMillis(getUptimeMillis());
             const unsigned long rawTime = static_cast<unsigned long>(epochMillis / 1000);
-            output << _WIDTHZ((rawTime % 86400L) / 3600, 2) << F(":"); // hh
-            output << _WIDTHZ((rawTime % 3600) / 60, 2) << F(":");     // mm
-            output << _WIDTHZ(rawTime % 60, 2) << F(".");              // ss
-            output << _WIDTHZ(static_cast<unsigned long>(epochMillis % 1000), 3);
+            length = snprintf(timestamp, sizeof(timestamp), "%02lu:%02lu:%02lu.%03lu",
+                              (rawTime % 86400UL) / 3600UL,
+                              (rawTime % 3600UL) / 60UL, rawTime % 60UL,
+                              static_cast<unsigned long>(epochMillis % 1000));
         }
         else
         {
-            output << _WIDTH(millis(), 8);
+            length = snprintf(timestamp, sizeof(timestamp), "%8lu", static_cast<unsigned long>(millis()));
         }
+        if (length > 0 && static_cast<size_t>(length) < sizeof(timestamp))
+            output.write(reinterpret_cast<const uint8_t *>(timestamp), static_cast<size_t>(length));
         return output;
     }
 
