@@ -7,6 +7,7 @@
 #define LOCAL_WIFI_SSID "....."
 #define LOCAL_WIFI_WPSK "....."
 #define OTA_PORT 123
+// MD5 encodieren mit: `echo -n "DeinWunschPasswort" | md5sum`
 #define OTA_AUTH_MD5 "..."
 
 //#define COPY_TO_SERIAL              // if logged messages should be immediately printed on Serial
