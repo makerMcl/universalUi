@@ -225,6 +225,43 @@ public:
         return result;
     }
 
+    // The returned spans refer to the live buffer and may be overwritten.
+    size_t getLog(const char *&first, size_t &firstLength,
+                  const char *&second, size_t &secondLength) const
+    {
+        MUTEX_LOCK;
+        first = _clipped ? _buffer + _appendIndex + 1 : _buffer;
+        firstLength = _clipped ? _bufSize - _appendIndex - 1 : _appendIndex;
+        second = _buffer;
+        secondLength = _clipped ? _appendIndex : 0;
+        if (_clipped)
+        {
+            const size_t firstSearch = min(firstLength, static_cast<size_t>(201));
+            const char *newline = static_cast<const char *>(memchr(first, '\n', firstSearch));
+            if (newline)
+            {
+                const size_t skip = newline - first + 1;
+                first += skip;
+                firstLength -= skip;
+            }
+            else
+            {
+                const size_t secondSearch = min(secondLength, static_cast<size_t>(201) - firstSearch);
+                newline = static_cast<const char *>(memchr(second, '\n', secondSearch));
+                if (newline)
+                {
+                    const size_t skip = newline - second + 1;
+                    firstLength = 0;
+                    second += skip;
+                    secondLength -= skip;
+                }
+            }
+        }
+        const size_t length = firstLength + secondLength;
+        MUTEX_UNLOCK;
+        return length;
+    }
+
     /**
      * Fills the given buffer with data from the log buffer content.
      * This method also takes care of rolling buffer overflow.
@@ -291,15 +328,9 @@ public:
 
     size_t getHtmlLogLength()
     {
-        uint8_t chunk[64];
-        size_t length = 0;
-        size_t rotationPoint = 0;
-        size_t count;
-        do
-        {
-            count = getLog(chunk, sizeof(chunk), length, rotationPoint);
-            length += count;
-        } while (count > 0);
+        MUTEX_LOCK;
+        const size_t length = _clipped ? _bufSize - 1 : _appendIndex;
+        MUTEX_UNLOCK;
         return length;
     }
 };
